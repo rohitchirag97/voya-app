@@ -1,0 +1,51 @@
+<!-- Staff profile picture (owner, admin, moderator, support set it themselves): the VoyaLive mascot with a support headset.
+     Rendered to staff-mascot.png (512px). No tick in the art: the Official tick stays reserved for OfficialMark. -->
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#4C1D95"/>
+      <stop offset="1" stop-color="#1E1B4B"/>
+    </radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF4F8F"/>
+      <stop offset="0.55" stop-color="#D046D8"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0.32" cy="0.22" r="0.6">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="90" cy="110" r="5" fill="#fff" fill-opacity="0.6"/>
+  <circle cx="420" cy="90" r="4" fill="#fff" fill-opacity="0.5"/>
+  <circle cx="440" cy="400" r="5" fill="#fff" fill-opacity="0.4"/>
+  <circle cx="70" cy="380" r="4" fill="#fff" fill-opacity="0.4"/>
+  <!-- body -->
+  <ellipse cx="256" cy="300" rx="150" ry="145" fill="url(#body)"/>
+  <ellipse cx="256" cy="300" rx="150" ry="145" fill="url(#shine)"/>
+  <!-- headset band -->
+  <path d="M112 300 A146 150 0 0 1 400 300" fill="none" stroke="#F1F5F9" stroke-width="18" stroke-linecap="round"/>
+  <!-- eyes -->
+  <ellipse cx="205" cy="280" rx="34" ry="40" fill="#fff"/>
+  <ellipse cx="307" cy="280" rx="34" ry="40" fill="#fff"/>
+  <circle cx="211" cy="288" r="20" fill="#1F1235"/>
+  <circle cx="313" cy="288" r="20" fill="#1F1235"/>
+  <circle cx="218" cy="279" r="7" fill="#fff"/>
+  <circle cx="320" cy="279" r="7" fill="#fff"/>
+  <!-- cheeks and smile -->
+  <ellipse cx="170" cy="335" rx="20" ry="12" fill="#FFB4D2" fill-opacity="0.7"/>
+  <ellipse cx="342" cy="335" rx="20" ry="12" fill="#FFB4D2" fill-opacity="0.7"/>
+  <path d="M226 336 Q256 368 286 336" fill="none" stroke="#1F1235" stroke-width="9" stroke-linecap="round"/>
+  <!-- ear cups -->
+  <rect x="92" y="258" width="42" height="84" rx="20" fill="#F1F5F9"/>
+  <rect x="378" y="258" width="42" height="84" rx="20" fill="#F1F5F9"/>
+  <rect x="102" y="272" width="22" height="56" rx="11" fill="#FF3D8B"/>
+  <rect x="388" y="272" width="22" height="56" rx="11" fill="#FF3D8B"/>
+  <!-- mic boom -->
+  <path d="M113 340 Q122 398 200 396" fill="none" stroke="#F1F5F9" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="206" cy="396" r="15" fill="#F1F5F9"/>
+  <circle cx="206" cy="396" r="7" fill="#FF3D8B"/>
+  <!-- brand V on the chest -->
+  <path d="M236 400 L256 430 L276 400" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

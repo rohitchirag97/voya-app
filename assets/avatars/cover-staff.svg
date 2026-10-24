@@ -1,0 +1,50 @@
+<!-- Default profile cover for staff (owner, admin, moderator, support) until they add cover photos.
+     Rendered to cover-staff.png (1080px). No tick in the art: the Official tick stays reserved for OfficialMark. -->
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0.7" cy="0.2" r="0.95">
+      <stop offset="0" stop-color="#5B21B6"/>
+      <stop offset="0.55" stop-color="#2E1065"/>
+      <stop offset="1" stop-color="#140B33"/>
+    </radialGradient>
+    <linearGradient id="ray" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F0ABFC" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#F0ABFC" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF4F8F"/>
+      <stop offset="0.55" stop-color="#D046D8"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1080" fill="url(#bg)"/>
+  <!-- stage light rays -->
+  <path d="M760 0 L560 620 L700 620 Z" fill="url(#ray)"/>
+  <path d="M820 0 L860 620 L1000 620 Z" fill="url(#ray)"/>
+  <path d="M300 0 L120 560 L260 560 Z" fill="url(#ray)" opacity="0.6"/>
+  <!-- big brand V watermark -->
+  <path d="M120 120 L330 470 L540 120" fill="none" stroke="#fff" stroke-opacity="0.07" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- stars -->
+  <g fill="#fff">
+    <circle cx="90" cy="80" r="4" fill-opacity="0.7"/><circle cx="420" cy="60" r="3" fill-opacity="0.6"/>
+    <circle cx="560" cy="300" r="4" fill-opacity="0.5"/><circle cx="1010" cy="70" r="5" fill-opacity="0.7"/>
+    <circle cx="980" cy="560" r="3" fill-opacity="0.5"/><circle cx="60" cy="430" r="3" fill-opacity="0.5"/>
+    <path d="M640 110 l8 22 22 8 -22 8 -8 22 -8 -22 -22 -8 22 -8z" fill-opacity="0.85"/>
+    <path d="M200 330 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6z" fill-opacity="0.6"/>
+  </g>
+  <!-- mascot, top right, in the spotlight -->
+  <g transform="translate(790 300) scale(0.9)">
+    <ellipse cx="0" cy="0" rx="150" ry="145" fill="url(#body)"/>
+    <path d="M-144 0 A146 150 0 0 1 144 0" fill="none" stroke="#F1F5F9" stroke-width="18" stroke-linecap="round"/>
+    <ellipse cx="-51" cy="-20" rx="34" ry="40" fill="#fff"/><ellipse cx="51" cy="-20" rx="34" ry="40" fill="#fff"/>
+    <circle cx="-45" cy="-12" r="20" fill="#1F1235"/><circle cx="57" cy="-12" r="20" fill="#1F1235"/>
+    <circle cx="-38" cy="-21" r="7" fill="#fff"/><circle cx="64" cy="-21" r="7" fill="#fff"/>
+    <ellipse cx="-86" cy="35" rx="20" ry="12" fill="#FFB4D2" fill-opacity="0.7"/><ellipse cx="86" cy="35" rx="20" ry="12" fill="#FFB4D2" fill-opacity="0.7"/>
+    <path d="M-30 36 Q0 68 30 36" fill="none" stroke="#1F1235" stroke-width="9" stroke-linecap="round"/>
+    <rect x="-164" y="-42" width="42" height="84" rx="20" fill="#F1F5F9"/><rect x="122" y="-42" width="42" height="84" rx="20" fill="#F1F5F9"/>
+    <rect x="-154" y="-28" width="22" height="56" rx="11" fill="#FF3D8B"/><rect x="132" y="-28" width="22" height="56" rx="11" fill="#FF3D8B"/>
+    <path d="M-143 40 Q-134 98 -56 96" fill="none" stroke="#F1F5F9" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="-50" cy="96" r="15" fill="#F1F5F9"/><circle cx="-50" cy="96" r="7" fill="#FF3D8B"/>
+    <path d="M-20 100 L0 130 L20 100" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

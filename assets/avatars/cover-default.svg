@@ -1,0 +1,38 @@
+<!-- Default profile cover for regular users (until they add cover photos). Rendered to cover-default.png (1080px).
+     Avatar and name sit over the lower half, so the detail lives up top. -->
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF7AB0"/>
+      <stop offset="0.5" stop-color="#C084FC"/>
+      <stop offset="1" stop-color="#818CF8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.75" cy="0.15" r="0.6">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1080" height="1080" fill="url(#bg)"/>
+  <rect width="1080" height="1080" fill="url(#glow)"/>
+  <!-- sound waves -->
+  <g fill="none" stroke="#fff" stroke-linecap="round">
+    <path d="M0 330 C180 250 320 410 540 330 S900 250 1080 330" stroke-width="5" stroke-opacity="0.35"/>
+    <path d="M0 400 C200 320 340 480 560 400 S920 320 1080 400" stroke-width="3" stroke-opacity="0.25"/>
+    <path d="M0 260 C160 200 300 330 520 260 S880 190 1080 260" stroke-width="3" stroke-opacity="0.2"/>
+  </g>
+  <!-- bokeh -->
+  <g fill="#fff">
+    <circle cx="140" cy="140" r="60" fill-opacity="0.12"/>
+    <circle cx="860" cy="120" r="90" fill-opacity="0.12"/>
+    <circle cx="620" cy="200" r="28" fill-opacity="0.18"/>
+    <circle cx="330" cy="90" r="18" fill-opacity="0.25"/>
+    <circle cx="980" cy="470" r="40" fill-opacity="0.12"/>
+    <circle cx="90" cy="520" r="30" fill-opacity="0.12"/>
+  </g>
+  <!-- sparkles -->
+  <g fill="#fff">
+    <path d="M760 250 l8 22 22 8 -22 8 -8 22 -8 -22 -22 -8 22 -8z" fill-opacity="0.8"/>
+    <path d="M240 210 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6z" fill-opacity="0.7"/>
+    <path d="M470 120 l5 13 13 5 -13 5 -5 13 -5 -13 -13 -5 13 -5z" fill-opacity="0.6"/>
+  </g>
+</svg>

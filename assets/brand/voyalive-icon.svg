@@ -1,0 +1,25 @@
+<!-- VoyaLive app icon (master). A cheering figure: the raised arms form the V, the head is the "live" dot, the arcs are its voice on air.
+     Keep in sync with src/components/Logo.tsx. Launcher/App Store PNGs are rendered from this file. -->
+<svg viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF4F8F"/>
+      <stop offset="0.55" stop-color="#D046D8"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.2" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g id="background">
+    <rect width="108" height="108" fill="url(#bg)"/>
+    <rect width="108" height="108" fill="url(#glow)"/>
+  </g>
+  <g id="mark">
+    <path d="M33 41 L54 76 L75 41" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="54" cy="38" r="8" fill="#fff"/>
+    <path d="M24 30 A20 20 0 0 0 24 52" fill="none" stroke="#fff" stroke-opacity="0.75" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M84 30 A20 20 0 0 1 84 52" fill="none" stroke="#fff" stroke-opacity="0.75" stroke-width="4.5" stroke-linecap="round"/>
+  </g>
+</svg>
