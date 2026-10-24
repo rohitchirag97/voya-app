@@ -1,12 +1,14 @@
 import { Crown, Gem, Lock, MicOff, Plus, ShieldCheck } from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { Seat } from '../api';
 import { FramedAvatar } from '../components/Decor';
 import { OfficialMark } from '../components/Official';
 import { Avatar } from '../components/ui';
 import { roomColors as colors, radius, space } from '../theme';
 import { useCatalog } from './catalog';
+import { EmoteBurst } from './Emotes';
+import type { SeatEmote } from './useRoom';
 
 type Props = {
   rowLayout: number[];
@@ -17,43 +19,52 @@ type Props = {
   levels: Record<string, number>;
   pendingSeat: number | null;
   charisma?: Record<string, number> | null; // set while the charisma counter is on: coins received per userId
+  oneRow?: boolean; // Ludo mode: every seat in a single row that scrolls sideways, leaving room for the board
+  emotes?: Record<string, SeatEmote>; // emote playing over each seated person (by userId)
   onPress: (seat: Seat) => void;
 };
 
 // Renders exactly the server's rowLayout (8=4+4, 10=5+5, 12=4+4+4, 16=4x4, 20=4x5), row-major.
-export function SeatGrid({ rowLayout, seats, meId, hostUserId, admins, levels, pendingSeat, charisma, onPress }: Props) {
+export function SeatGrid({ rowLayout, seats, meId, hostUserId, admins, levels, pendingSeat, charisma, oneRow, emotes, onPress }: Props) {
   const { width } = useWindowDimensions();
   const maxCols = Math.max(...rowLayout);
-  const cell = (width - space(4) * 2) / maxCols;
-  const avatar = Math.min(rowLayout.length > 3 ? 54 : 62, cell * 0.62);
+  const cell = oneRow ? 64 : (width - space(4) * 2) / maxCols;
+  const avatar = oneRow ? 40 : Math.min(rowLayout.length > 3 ? 54 : 62, cell * 0.62);
   const catalog = useCatalog();
   let start = 0;
 
+  const tile = (seat: Seat) => (
+    <SeatTile
+      key={seat.seatIndex}
+      seat={seat}
+      width={cell}
+      avatar={avatar}
+      isMe={seat.occupant?.userId === meId}
+      owner={seat.occupant?.userId === hostUserId}
+      admin={!!seat.occupant && admins.includes(seat.occupant.userId)}
+      speaking={!!seat.streamId && (levels[seat.streamId] ?? 0) > 8 && !seat.micMuted && !seat.modMuted}
+      pending={pendingSeat === seat.seatIndex}
+      charisma={charisma && seat.occupant ? charisma[seat.occupant.userId] ?? 0 : undefined}
+      frameSvg={seat.occupant?.frameId ? catalog.frames[seat.occupant.frameId]?.svg : undefined}
+      emote={seat.occupant ? emotes?.[seat.occupant.userId] : undefined}
+      onPress={() => onPress(seat)}
+    />
+  );
+
+  if (oneRow) {
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space(2) }} testID="seat-row-ludo">
+        {seats.map(tile)}
+      </ScrollView>
+    );
+  }
   return (
     <View style={{ paddingHorizontal: space(4), gap: rowLayout.length > 3 ? space(1) : space(3) }}>
-      {rowLayout.map((cols, r) => {
-        const row = seats.slice(start, (start += cols));
-        return (
-          <View key={r} style={st.row} testID={`seat-row-${r}`}>
-            {row.map((seat) => (
-              <SeatTile
-                key={seat.seatIndex}
-                seat={seat}
-                width={cell}
-                avatar={avatar}
-                isMe={seat.occupant?.userId === meId}
-                owner={seat.occupant?.userId === hostUserId}
-                admin={!!seat.occupant && admins.includes(seat.occupant.userId)}
-                speaking={!!seat.streamId && (levels[seat.streamId] ?? 0) > 8 && !seat.micMuted && !seat.modMuted}
-                pending={pendingSeat === seat.seatIndex}
-                charisma={charisma && seat.occupant ? charisma[seat.occupant.userId] ?? 0 : undefined}
-                frameSvg={seat.occupant?.frameId ? catalog.frames[seat.occupant.frameId]?.svg : undefined}
-                onPress={() => onPress(seat)}
-              />
-            ))}
-          </View>
-        );
-      })}
+      {rowLayout.map((cols, r) => (
+        <View key={r} style={st.row} testID={`seat-row-${r}`}>
+          {seats.slice(start, (start += cols)).map(tile)}
+        </View>
+      ))}
     </View>
   );
 }
@@ -92,7 +103,7 @@ function Ripple({ size, color }: { size: number; color: string }) {
   );
 }
 
-function SeatTile({ seat, width, avatar, isMe, owner, admin, speaking, pending, charisma, frameSvg, onPress }: {
+function SeatTile({ seat, width, avatar, isMe, owner, admin, speaking, pending, charisma, frameSvg, emote, onPress }: {
   seat: Seat;
   width: number;
   avatar: number;
@@ -103,6 +114,7 @@ function SeatTile({ seat, width, avatar, isMe, owner, admin, speaking, pending, 
   pending: boolean;
   charisma: number | undefined; // undefined = counter off or empty seat
   frameSvg?: string; // the occupant's avatar frame (drawn bigger than the seat, like a crown around it)
+  emote?: SeatEmote;
   onPress: () => void;
 }) {
   const o = seat.occupant;
@@ -163,6 +175,7 @@ function SeatTile({ seat, width, avatar, isMe, owner, admin, speaking, pending, 
             <MicOff size={10} color="#fff" strokeWidth={2.6} />
           </View>
         ) : null}
+        {o && emote ? <EmoteBurst key={emote.id} emote={emote.emote} result={emote.result} size={avatar} /> : null}
       </View>
       {o ? (
         <View style={[st.namePill, owner && st.namePillOwner]}>

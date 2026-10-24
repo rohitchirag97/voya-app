@@ -57,6 +57,7 @@ export type RoomSnapshot = {
   kind: RoomKind; // LIVE: video live stream (seat 0 = host camera, 1-3 = co-hosts)
   pinned?: boolean;
   official?: boolean;
+  ludo?: boolean; // Ludo mode: seats in one row with the board below (the board page follows the game itself)
 };
 // Charisma counter: coins of gifts each person received in this room since startedAt.
 export type Charisma = { startedAt: string; totals: Record<string, number> };
@@ -95,7 +96,7 @@ export type ChatMessage = {
   body: string;
   mentions: string[];
   clientMessageId: string | null;
-  payload?: { userId?: string; youFollowThem?: boolean; kind?: string; game?: 'jungle' | 'galaxy' | 'rocket'; amount?: number } | null; // system/follow items name the user they are about; game wins name the game
+  payload?: { userId?: string; youFollowThem?: boolean; kind?: string; game?: 'jungle' | 'galaxy' | 'rocket'; amount?: number; emote?: import('./room/Emotes').EmoteKey; result?: string } | null; // system/follow items name the user they are about; game wins name the game; emotes carry the server-drawn result
   sender: UserSummary | null;
   createdAt: string;
 };

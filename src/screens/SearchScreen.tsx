@@ -16,7 +16,7 @@ export function SearchScreen() {
   const [q, setQ] = useState('');
   const [found, setFound] = useState<FoundUser[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const valid = /^\d{3,10}$/.test(q);
+  const valid = /^[A-Z0-9]{3,10}$/.test(q);
 
   async function run() {
     if (!valid) return;
@@ -40,16 +40,17 @@ export function SearchScreen() {
           <Search size={18} color={colors.muted} />
           <TextInput
             value={q}
-            onChangeText={(t) => setQ(t.replace(/\D/g, ''))}
+            onChangeText={(t) => setQ(t.replace(/[^A-Za-z0-9]/g, '').toUpperCase())}
             onSubmitEditing={run}
             placeholder="Search by ID or special ID"
             placeholderTextColor={colors.muted}
-            keyboardType="number-pad"
+            autoCapitalize="characters"
+            autoCorrect={false}
             returnKeyType="search"
             maxLength={10}
             autoFocus
             style={st.input}
-            accessibilityLabel="ID number"
+            accessibilityLabel="ID or special ID"
           />
           {busy ? <ActivityIndicator color={colors.primary} /> : null}
         </View>
@@ -69,7 +70,7 @@ export function SearchScreen() {
               <UserRoundSearch size={30} color={colors.primary} />
             </View>
             <Text style={s.h2}>{found ? 'No one has that ID' : 'Find people by ID'}</Text>
-            <Text style={[s.muted, { textAlign: 'center' }]}>Enter a 10-digit ID, or a special ID (3-9 digits).</Text>
+            <Text style={[s.muted, { textAlign: 'center' }]}>Enter a 10-digit ID, or a special ID (3-9 letters or numbers).</Text>
           </View>
         }
         renderItem={({ item }) => (

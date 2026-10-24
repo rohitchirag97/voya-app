@@ -2,6 +2,8 @@ import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import ZegoExpressEngine, {
   ZegoEffectsBeautyParam,
   ZegoEngineProfile,
+  ZegoMediaPlayer,
+  ZegoMediaPlayerState,
   ZegoPublishChannel,
   ZegoRoomConfig,
   ZegoRoomState,
@@ -19,6 +21,8 @@ import type { ZegoCreds } from '../api';
 export type MediaState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 // Live camera beauty: each intensity is 0-100.
 export type Beauty = { on: boolean; smooth: number; whiten: number; rosy: number; sharpen: number };
+// A song from the phone, mixed into your seat's stream so the whole room hears it. Volumes are 0-100 (%).
+export type Music = { name: string | null; playing: boolean; songVolume: number; micVolume: number };
 type Handlers = {
   onState: (s: MediaState) => void;
   onSoundLevels: (levels: Record<string, number>) => void; // streamId -> 0..100; local stream included
@@ -69,6 +73,9 @@ class ZegoAudioRoomService {
   private video = false;
   private previewTag: number | null = null;
   private frontCamera = true;
+  private player: ZegoMediaPlayer | null = null;
+  music: Music = { name: null, playing: false, songVolume: 60, micVolume: 100 };
+  onMusic: ((m: Music) => void) | null = null; // the music panel, while it's open
 
   async join(creds: ZegoCreds, displayName: string, h: Handlers, opts: { video?: boolean } = {}) {
     if (this.roomId) await this.leave();
@@ -79,6 +86,7 @@ class ZegoAudioRoomService {
     );
     const e = this.engine;
     await e.enableCamera(false, ZegoPublishChannel.Main);
+    await e.setCaptureVolume(this.music.micVolume); // kept from the last room, like beauty
     if (this.video) {
       await e.setVideoConfig(liveVideoConfig(), ZegoPublishChannel.Main);
       // The built-in beauty effects must be set up before the camera starts.
@@ -134,6 +142,7 @@ class ZegoAudioRoomService {
     if (video && !(await ensureCameraPermission())) throw new Error('Camera permission denied');
     if (token) await this.engine.renewToken(this.roomId, token);
     await this.engine.mutePublishStreamAudio(false, ZegoPublishChannel.Main);
+    await this.engine.muteMicrophone(false);
     if (video) {
       await this.engine.enableCamera(true, ZegoPublishChannel.Main);
       await this.engine.useFrontCamera(this.frontCamera, ZegoPublishChannel.Main);
@@ -147,6 +156,7 @@ class ZegoAudioRoomService {
   async stopPublishing() {
     if (!this.engine || !this.publishing) return;
     this.publishing = null;
+    await this.stopSong().catch(() => {}); // off the seat, nobody else would hear it
     if (this.roomId) RoomCall?.start(false); // back to listening (leave() clears roomId first, then stops the service)
     await this.engine.stopPublishingStream(ZegoPublishChannel.Main);
     if (this.video) {
@@ -158,8 +168,58 @@ class ZegoAudioRoomService {
   isPublishing = () => !!this.publishing;
   publishingStream = () => this.publishing;
 
-  setMicMuted(muted: boolean) {
-    return this.engine?.mutePublishStreamAudio(muted, ZegoPublishChannel.Main);
+  // Muting yourself only turns off the mic, so a song you're playing keeps going; a moderator mute silences both.
+  async setMicMuted(muted: boolean, modMuted = false) {
+    await this.engine?.muteMicrophone(muted);
+    await this.engine?.mutePublishStreamAudio(modMuted, ZegoPublishChannel.Main);
+  }
+
+  // ---------- music (from a seat) ----------
+  private setMusic(m: Partial<Music>) {
+    this.music = { ...this.music, ...m };
+    this.onMusic?.(this.music);
+  }
+
+  // `path` is an absolute local file path. Only works while publishing: the song rides on your seat's stream.
+  async playSong(path: string, name: string) {
+    const e = this.engine;
+    if (!e || !this.publishing) throw new Error('Take a seat to play music');
+    if (!this.player) {
+      this.player = await e.createMediaPlayer();
+      if (!this.player) throw new Error('Music player unavailable');
+      this.player.on('mediaPlayerStateUpdate', (_p, state) => {
+        if (state === ZegoMediaPlayerState.PlayEnded) this.setMusic({ name: null, playing: false });
+      });
+      await this.player.enableAux(true);
+    }
+    await this.player.stop();
+    const r = await this.player.loadResource(path);
+    if (r.errorCode !== 0) throw new Error(`Couldn't play that file (ZEGO ${r.errorCode})`);
+    await this.player.setVolume(this.music.songVolume);
+    await this.player.start();
+    this.setMusic({ name, playing: true });
+  }
+
+  async toggleSong() {
+    if (!this.player || !this.music.name) return;
+    await (this.music.playing ? this.player.pause() : this.player.resume());
+    this.setMusic({ playing: !this.music.playing });
+  }
+
+  async stopSong() {
+    await this.player?.stop();
+    this.setMusic({ name: null, playing: false });
+  }
+
+  async setSongVolume(v: number) {
+    await this.player?.setVolume(v); // 0-200 in ZEGO; we cap at 100 so a song can't drown out voices
+    this.setMusic({ songVolume: v });
+  }
+
+  // 0-200, 100 = as recorded.
+  async setMicVolume(v: number) {
+    await this.engine?.setCaptureVolume(v);
+    this.setMusic({ micVolume: v });
   }
 
   // ---------- video (live rooms) ----------
@@ -248,6 +308,8 @@ class ZegoAudioRoomService {
     this.roomId = null;
     RoomCall?.stop();
     await this.stopPublishing().catch(() => {});
+    if (this.player) await e.destroyMediaPlayer(this.player).catch(() => {});
+    this.player = null;
     for (const s of this.playing) await e.stopPlayingStream(s).catch(() => {});
     this.playing.clear();
     await e.stopSoundLevelMonitor().catch(() => {});

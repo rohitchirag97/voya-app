@@ -1,4 +1,4 @@
-import { Armchair, AtSign, Check, ChevronDown, ChevronRight, Coins, Crown, Dices, Gift, LayoutGrid, Mail, MessageSquareText, Mic, MicOff, Send, ShieldCheck, Sparkles, Star, UserPlus, X } from 'lucide-react-native';
+import { Armchair, AtSign, Check, ChevronDown, ChevronRight, Coins, Crown, Dices, Gift, LayoutGrid, Mail, MessageSquareText, Mic, MicOff, Send, ShieldCheck, Smile, Sparkles, Star, UserPlus, X } from 'lucide-react-native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View, type ListViewToken } from 'react-native';
 import { errorText, setFollowing, type ChatMessage, type Participant } from '../api';
@@ -14,7 +14,11 @@ import { roomColors as colors, gradients, radius, space } from '../theme';
 import type { GameKey } from './GameSheet';
 import type { Mention } from './useRoom';
 
-const TRAILING_MENTION = /@([A-Za-z0-9_.]*)$/;
+const TRAILING_MENTION = /@([^\s@]*)$/;
+
+// Names can hold spaces and symbols, so split on the exact verified @names (longest first) rather than a character class.
+const mentionSplitter = (names: string[]) =>
+  new RegExp(`(${names.sort((a, b) => b.length - a.length).map((n) => '@' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'u');
 
 type Roles = { hostUserId: string; admins: string[] };
 
@@ -222,7 +226,7 @@ function Bubble({ m, meId, names, onUserPress, onOpenGame, roles }: {
         </Text>
       </View>
       <Text style={[st.msg, big && st.bigEmoji, bubble?.style && { color: bubble.style.text }]}>
-        {m.body.split(/(@[A-Za-z0-9_.]+)/).map((part, i) =>
+        {(handles.size ? m.body.split(mentionSplitter([...handles.keys()] as string[])) : [m.body]).map((part, i) =>
           handles.has(part.slice(1)) ? (
             <Text
               key={i}
@@ -309,8 +313,8 @@ function FollowItem({ m, onUserPress }: { m: ChatMessage; onUserPress: (userId: 
   );
 }
 
-// Bottom bar. Left: chat (opens the text box), messages, mic, more. Right: games and the gift button.
-export function Composer({ participants, meId, onSend, onGift, onMore, onGames, onMessages, micMuted, onToggleMic, tag, minimal }: {
+// Bottom bar. Left: chat (opens the text box), emotes, messages, mic, more. Right: games and the gift button.
+export function Composer({ participants, meId, onSend, onGift, onMore, onGames, onMessages, onEmotes, micMuted, onToggleMic, tag, minimal }: {
   participants: Participant[];
   meId: string;
   onSend: (body: string, mentions: Mention[]) => Promise<void>;
@@ -318,6 +322,7 @@ export function Composer({ participants, meId, onSend, onGift, onMore, onGames, 
   onMore: () => void; // the room's More sheet: games, seats, …
   onGames: () => void;
   onMessages: () => void; // direct messages inbox (the room keeps running)
+  onEmotes: () => void; // the animated emote picker
   micMuted: boolean | null; // null = not on a seat, so no mic button
   onToggleMic: () => void;
   tag: { userId: string; handle: string; n: number } | null; // from a profile card: insert @handle
@@ -411,6 +416,9 @@ export function Composer({ participants, meId, onSend, onGift, onMore, onGames, 
         <View style={st.bar}>
           <IconButton label="Chat" onPress={() => setTyping(true)} size={44}>
             <MessageSquareText size={20} color={colors.text} strokeWidth={2.3} />
+          </IconButton>
+          <IconButton label="Emotes" onPress={onEmotes} size={44}>
+            <Smile size={20} color={colors.gold} strokeWidth={2.3} />
           </IconButton>
           {minimal ? null : (
             <IconButton label="Messages" onPress={onMessages} size={44}>

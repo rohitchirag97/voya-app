@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, errorText, getProfileOptions, uploadAvatar, type Me, type ProfileOptions } from '../api';
 import { pickPhoto } from './ProfileParts';
+import { NAME_MAX, NAME_MIN, nameError as nameRule, normalizeName } from '../displayName';
 import { Avatar, Button, Field, Screen, s, toast } from '../components/ui';
 import { useNav } from '../nav';
 import { colors, radius, space } from '../theme';
@@ -41,16 +42,9 @@ export function ProfileSetupScreen() {
     getProfileOptions().then(setOpts).catch(() => {});
   }, []);
 
-  // Names double as @mention handles, so no spaces or symbols; say exactly what's wrong instead of a silently disabled Save.
-  const nameError = /\s/.test(name)
-    ? `Spaces aren't allowed. Try ${name.trim().replace(/\s+/g, '_') || 'your_name'}`
-    : /[^A-Za-z0-9_.]/.test(name)
-      ? 'Only letters, numbers, _ and . are allowed'
-      : name.length < 3
-        ? 'At least 3 characters'
-        : name.length > 24
-          ? 'At most 24 characters'
-          : null;
+  // Same rules as the server; say exactly what's wrong instead of a silently disabled Save.
+  const cleanName = normalizeName(name);
+  const nameError = nameRule(cleanName);
   const validName = !nameError;
   const birthdayIso = toIso(birthday);
   const birthdayOk = !birthday || !!birthdayIso;
@@ -70,7 +64,7 @@ export function ProfileSetupScreen() {
     setBusy(true);
     try {
       const updated = await api<Me>('PATCH', '/me/profile', {
-        displayName: name,
+        displayName: cleanName,
         bio: bio.trim() || null,
         gender,
         birthday: birthdayIso,
@@ -108,19 +102,11 @@ export function ProfileSetupScreen() {
           <Avatar id={me?.userId ?? 'x'} name={name || '?'} uri={me?.avatarUrl} size={96} />
           <Text style={st.changePhoto}>{me?.avatarUrl ? 'Change photo' : 'Add a photo'}</Text>
         </Pressable>
-        <Field label="Display name" value={name} onChangeText={setName} placeholder="chai_lover" autoCapitalize="none" maxLength={24} />
+        <Field label="Display name" value={name} onChangeText={setName} placeholder="꧁ chai lover ꧂" autoCapitalize="none" maxLength={NAME_MAX * 2} />
         {nameError && name ? (
-          <Pressable
-            onPress={() => /\s/.test(name) && setName(name.trim().replace(/\s+/g, '_'))}
-            accessibilityRole={/\s/.test(name) ? 'button' : 'text'}
-            accessibilityHint={/\s/.test(name) ? 'Replaces the spaces with underscores' : undefined}>
-            <Text style={st.error}>
-              {nameError}
-              {/\s/.test(name) ? <Text style={st.fix}>  Use this</Text> : null}
-            </Text>
-          </Pressable>
+          <Text style={st.error} accessibilityLiveRegion="polite">{nameError}</Text>
         ) : (
-          <Text style={[s.muted, { fontSize: 12 }]}>3–24 characters: letters, numbers, _ or .</Text>
+          <Text style={[s.muted, { fontSize: 12 }]}>{NAME_MIN}–{NAME_MAX} characters. Fancy fonts, symbols and emoji are welcome.</Text>
         )}
         <Field label="Bio (optional)" value={bio} onChangeText={setBio} placeholder="Say something about you" maxLength={160} />
 
@@ -182,5 +168,4 @@ const st = StyleSheet.create({
   chipText: { color: colors.text, fontSize: 14, fontWeight: '600' },
   chipTextOn: { color: '#fff' },
   error: { color: colors.danger, fontSize: 12, fontWeight: '600' },
-  fix: { color: colors.primary, fontWeight: '900' },
 });

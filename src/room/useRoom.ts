@@ -5,6 +5,7 @@ import { toast } from '../components/ui';
 import { connectSocket, send } from '../services/RoomSocket';
 import { ensureMicPermission, zego, type MediaState } from '../services/ZegoAudioRoomService';
 import type { BigWin } from './BigWinBanner';
+import { emoteMs, type EmoteKey } from './Emotes';
 
 export type GiftEvent = {
   transactionId: string;
@@ -15,6 +16,7 @@ export type GiftEvent = {
   quantity: number;
 };
 export type Mention = { userId: string; handle: string };
+export type SeatEmote = { id: string; emote: EmoteKey; result?: string };
 export type FollowNote = { user: { userId: string; displayName: string | null; avatarUrl: string | null }; youFollowThem: boolean };
 export type KickedUser = { userId: string; displayName: string | null; avatarUrl: string | null; kickedAt: string };
 export type SeatInvite = { seatIndex: number; from: { userId: string; displayName: string } };
@@ -53,6 +55,8 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
   const [pendingSeat, setPendingSeat] = useState<number | null>(null);
   const [invite, setInvite] = useState<SeatInvite | null>(null);
   const [unseenMentions, setUnseenMentions] = useState<ChatMessage[]>([]);
+  // Emote playing on each person's seat right now (userId -> the chat message that carried it).
+  const [emotes, setEmotes] = useState<Record<string, SeatEmote>>({});
   // Profile cards of people in the room, prefetched on join and as people arrive, so cards open instantly.
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>({});
   const asked = useRef(new Set<string>());
@@ -134,6 +138,12 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
       addMessages([m]);
       // Someone tagged me: queue it until it's been on screen (see ChatList).
       if (m.mentions.includes(me.userId) && m.sender?.userId !== me.userId) setUnseenMentions((q) => [...q, m]);
+      const emote = m.payload?.emote;
+      const who = m.sender?.userId;
+      if (emote && who) {
+        setEmotes((e) => ({ ...e, [who]: { id: m.messageId, emote, result: m.payload?.result } }));
+        setTimeout(() => setEmotes(({ [who]: cur, ...rest }) => (cur?.id === m.messageId ? rest : cur ? { ...rest, [who]: cur } : rest)), emoteMs(emote));
+      }
     });
     s.on('room:system', (m: { messageId: string; body: string; createdAt: string }) =>
       addMessages([{ ...m, type: 'SYSTEM', mentions: [], sender: null, clientMessageId: null }]),
@@ -141,6 +151,7 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
     s.on('room:gift:received', (g: GiftEvent) => setGifts((q) => [...q, g]));
     s.on('room:charisma', (e: { roomId: string; charisma: Charisma | null }) => e.roomId === roomId && setSnap((p) => (p ? { ...p, charisma: e.charisma } : p)));
     s.on('room:pk', (e: { roomId: string; pk: Pk | null }) => e.roomId === roomId && setSnap((p) => (p ? { ...p, pk: e.pk } : p)));
+    s.on('room:ludo', (e: { roomId: string; on: boolean }) => e.roomId === roomId && setSnap((p) => (p ? { ...p, ludo: e.on } : p)));
     // Big wins from any game, anywhere: shown as a banner in whatever room is open (queued, a few at most).
     s.on('game:bigwin', (w: BigWin) => setBigWins((q) => [...q, w].slice(-5)));
     s.on('room:removed', () => setClosed((c) => c ?? 'removed'));
@@ -251,7 +262,7 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
   // Server seat state is the authority: lost seat => stop publishing; mute flag => mute mic.
   useEffect(() => {
     if (!mySeat && zego.isPublishing()) zego.stopPublishing();
-    if (mySeat && zego.isPublishing()) zego.setMicMuted(mySeat.micMuted || mySeat.modMuted);
+    if (mySeat && zego.isPublishing()) zego.setMicMuted(mySeat.micMuted, mySeat.modMuted);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mySeat?.seatIndex, mySeat?.micMuted, mySeat?.modMuted]);
 
@@ -319,6 +330,7 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
     inviteToSeat: (seatIndex: number, userId: string) => api('POST', `/rooms/${roomId}/seats/${seatIndex}/invite`, { userId }),
     setSeatCount: (seatCount: number) => api('POST', `/rooms/${roomId}/seat-count`, { seatCount }),
     setCharisma: (on: boolean) => api('POST', `/rooms/${roomId}/charisma`, { on }),
+    setLudo: (on: boolean) => api('POST', `/rooms/${roomId}/ludo`, { on }),
     startPk: (a: string, b: string, minutes: number) => api('POST', `/rooms/${roomId}/pk`, { a, b, minutes }),
     // ---------- live streams ----------
     livePk,
@@ -352,6 +364,8 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
     remove: (userId: string) => api('POST', `/rooms/${roomId}/participants/${userId}/remove`),
     sendChat: (body: string, mentions: Mention[]) =>
       emit<ChatMessage>('room:chat:send', { body, mentions, clientMessageId: newId() }).then((m) => addMessages([m])),
+    emotes,
+    sendEmote: (emote: EmoteKey) => emit<ChatMessage>('room:emote', { emote, clientMessageId: newId() }), // plays when the broadcast comes back
     // to === 'ALL': one gift to everyone seated, charged once by the server.
     sendGift: (to: string, giftId: string, quantity: number, idempotencyKey: string) =>
       to === 'ALL'

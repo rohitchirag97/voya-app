@@ -13,6 +13,8 @@ import { GiftBanner, GiftSheet } from '../room/GiftSheet';
 import { PeopleSheet } from '../room/PeopleSheet';
 import { PinGate } from '../room/PinGate';
 import { LiveStage } from '../room/LiveStage';
+import { LudoBoard } from '../room/LudoBoard';
+import { EmoteSheet } from '../room/Emotes';
 import { confirmDialog } from '../components/Dialog';
 import { RoomDrawer } from '../room/RoomDrawer';
 import { RoomMenu } from '../room/RoomMenu';
@@ -35,6 +37,7 @@ export function RoomScreen() {
   const [giftOpen, setGiftOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [gamesOpen, setGamesOpen] = useState(false);
+  const [emotesOpen, setEmotesOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Gift animations off: drop queued gifts instead of letting them pile up unseen.
   const giftsOff = room?.snap?.giftAnimations === false && room.gifts.length > 0;
@@ -117,6 +120,7 @@ export function RoomScreen() {
           onMore={() => setMenuOpen(true)}
           onGames={() => setGamesOpen(true)}
           onMessages={() => nav.push({ name: 'home', tab: 'messages' })}
+          onEmotes={() => setEmotesOpen(true)}
           onOpenGame={nav.openGame}
           onClose={endOrLeave}
           tag={tag}
@@ -179,8 +183,11 @@ export function RoomScreen() {
           levels={room.levels}
           pendingSeat={room.pendingSeat}
           charisma={snap.charisma?.totals ?? null}
+          oneRow={snap.ludo}
+          emotes={room.emotes}
           onPress={onSeat}
         />
+        {snap.ludo ? <LudoBoard roomId={snap.roomId} /> : null}
         {snap.giftAnimations ? <GiftBanner event={room.gifts[0]} onDone={room.shiftGift} /> : null}
       </View>
 
@@ -228,6 +235,7 @@ export function RoomScreen() {
           onMore={() => setMenuOpen(true)}
           onGames={() => setGamesOpen(true)}
           onMessages={() => nav.push({ name: 'home', tab: 'messages' })} // the room keeps running as a bubble
+          onEmotes={() => setEmotesOpen(true)}
           micMuted={mySeat ? mySeat.micMuted : null}
           onToggleMic={() => mySeat && run(() => room.setMuted(me.userId, !mySeat.micMuted))}
           tag={tag}
@@ -332,6 +340,14 @@ export function RoomScreen() {
         onTag={(userId, handle) => setTag((t) => ({ userId, handle, n: (t?.n ?? 0) + 1 }))}
       />
 
+      <EmoteSheet
+        visible={emotesOpen}
+        onClose={() => setEmotesOpen(false)}
+        onPick={(e) => {
+          setEmotesOpen(false);
+          run(() => room.sendEmote(e));
+        }}
+      />
       <GiftSheet
         visible={giftOpen}
         onClose={() => setGiftOpen(false)}
@@ -349,6 +365,7 @@ export function RoomScreen() {
           setMenuOpen(false);
           nav.openGame(g); // the game lives at the app root, so it outlives this room
         }}
+        music={!!mySeat}
         seats={
           room.isMod && !live // live streams keep their 4 seats
             ? {
@@ -361,6 +378,17 @@ export function RoomScreen() {
             : null
         }
         charisma={room.isMod && !live ? { state: snap.charisma, onToggle: (on) => run(() => room.setCharisma(on)) } : null}
+        ludo={
+          room.isMod && !live
+            ? {
+                on: !!snap.ludo,
+                onToggle: (on) => {
+                  setMenuOpen(false);
+                  run(() => room.setLudo(on));
+                },
+              }
+            : null
+        }
         pk={
           room.isMod && !live // live streams battle other streams instead (the swords button)
             ? {
