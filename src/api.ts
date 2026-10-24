@@ -122,14 +122,26 @@ export type UserProfile = Me & {
   inRoom: { roomId: string; title: string; coverUrl: string | null; listeners: number; privacy: RoomPrivacy; kind: RoomKind } | null; // the live room they're in now
   svip: number;
   week?: { contribution: number; charisma: number; endsAt: string }; // gifts sent / received since Monday (India time)
+  relationships: Relationship[]; // active CPs, oldest first
 };
+
+// ---------- CP (relationships) ----------
+export type CpType = 'LOVE' | 'BESTIE' | 'SIBLING';
+export type CpLabel = 'BROTHER' | 'SISTER';
+export type Relationship = { pairId: string; type: CpType; label: CpLabel | null; since: string; user: { userId: string; displayName: string | null; avatarUrl: string | null } };
+export type CpProposal = { id: string; fromId: string; toId: string; type: CpType; label: CpLabel | null; price: number; status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'CANCELLED'; expiresAt: string };
+export type CpOptions = { types: Record<CpType, { max: number; price: number; gift: string }>; proposalTtlMs: number };
+export const getCpOptions = () => api<CpOptions>('GET', '/cp/options');
+export const proposeCp = (toUserId: string, type: CpType, label?: CpLabel) => api<{ proposal: CpProposal; balance: number }>('POST', '/cp/proposals', { toUserId, type, label });
+export const answerCp = (id: string, action: 'accept' | 'decline' | 'cancel') => api<CpProposal>('POST', `/cp/proposals/${id}/${action}`);
+export const endCp = (pairId: string) => api<{ ended: true }>('DELETE', `/cp/pairs/${pairId}`);
 export const listCosmetics = () => api<Cosmetic[]>('GET', '/cosmetics');
 export const equipCosmetics = (change: { avatarFrameId?: string | null; cardDecorId?: string | null; chatBubbleId?: string | null }) =>
   api<UserProfile>('PATCH', '/me/cosmetics', change);
 export const isFriend = (p: UserProfile) => p.isFollowing && p.followsMe; // mutual follow
 export const followLabel = (p: UserProfile) =>
   isFriend(p) ? 'Friends' : p.isFollowing ? 'Following' : p.followsMe ? 'Follow back' : 'Follow';
-export type DirectMessage = { id: number; senderId: string; recipientId: string; body: string; clientMessageId: string | null; createdAt: string };
+export type DirectMessage = { id: number; senderId: string; recipientId: string; body: string; clientMessageId: string | null; createdAt: string; cp?: CpProposal | null };
 export const getProfile = (userId: string) => api<UserProfile>('GET', `/users/${userId}`);
 // Up to 50 profiles at once, without counting as visits (room prefetch).
 export const getCards = (ids: string[]) => api<{ profiles: UserProfile[] }>('POST', '/users/cards', { ids });

@@ -1,4 +1,4 @@
-import { Armchair, AtSign, Check, ChevronDown, ChevronRight, Coins, Crown, Dices, Gift, LayoutGrid, Mail, MessageSquareText, Mic, MicOff, Send, ShieldCheck, Smile, Sparkles, Star, UserPlus, X } from 'lucide-react-native';
+import { Armchair, AtSign, Check, ChevronDown, ChevronRight, Coins, Crown, Dices, Gift, Heart, LayoutGrid, Mail, MessageSquareText, Mic, MicOff, Send, ShieldCheck, Smile, Sparkles, Star, UserPlus, X } from 'lucide-react-native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View, type ListViewToken } from 'react-native';
 import { errorText, setFollowing, type ChatMessage, type Participant } from '../api';
@@ -147,8 +147,9 @@ function SystemPill({ m, onUserPress }: { m: ChatMessage; onUserPress: (userId: 
   const gift = kind.startsWith('GIFT') || kind.startsWith('PK'); // gifts and PK notices share the gold style
   const join = kind === 'JOIN';
   const seat = kind.startsWith('SEAT') || kind === 'UNSEATED';
-  const tint = gift ? colors.gold : join ? colors.success : colors.muted;
-  const Icon = gift ? Gift : join ? Sparkles : seat ? Armchair : Sparkles;
+  const love = kind === 'CP_LOVE';
+  const tint = gift ? colors.gold : join ? colors.success : love ? '#FF4F8B' : colors.muted;
+  const Icon = gift ? Gift : join ? Sparkles : seat ? Armchair : love ? Heart : Sparkles;
   const who = m.payload?.userId;
   const p = m.payload as { svip?: number; tier?: number } | null;
   // SVIP2+ entrances and SVIP tier-ups (from any room): a banner in the tier's colours instead of the grey pill.
@@ -167,7 +168,7 @@ function SystemPill({ m, onUserPress }: { m: ChatMessage; onUserPress: (userId: 
     ) : (
       <View style={[st.system, gift && st.systemGift]}>
         <Icon size={12} color={tint} strokeWidth={2.4} />
-        <Text style={[st.systemText, { color: gift ? colors.gold : 'rgba(255,255,255,0.75)' }]}>{m.body}</Text>
+        <Text style={[st.systemText, { color: gift ? colors.gold : love ? '#FF8AB4' : 'rgba(255,255,255,0.75)' }]}>{m.body}</Text>
       </View>
     );
   return who ? (

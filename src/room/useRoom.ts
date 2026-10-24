@@ -21,7 +21,7 @@ export type FollowNote = { user: { userId: string; displayName: string | null; a
 export type KickedUser = { userId: string; displayName: string | null; avatarUrl: string | null; kickedAt: string };
 export type SeatInvite = { seatIndex: number; from: { userId: string; displayName: string } };
 // Level-ups / SVIP tier-ups broadcast to every room.
-export type Announcement = { userId: string; displayName: string; avatarUrl: string | null; at: string } & ({ kind: 'SVIP_UP'; tier: number } | { kind: 'LEVEL_UP'; level: number });
+export type Announcement = { userId: string; displayName: string; avatarUrl: string | null; at: string } & ({ kind: 'SVIP_UP'; tier: number } | { kind: 'LEVEL_UP'; level: number } | { kind: 'CP_LOVE'; partnerId: string; partnerName: string });
 // An SVIP2+ member entering: plays the entrance animation.
 export type Entrance = { userId: string; displayName: string | null; avatarUrl: string | null; svip: number; at: number };
 
@@ -177,7 +177,10 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
     s.on('app:announce', (a: Announcement) =>
       addLocal({
         type: 'SYSTEM',
-        body: a.kind === 'SVIP_UP' ? `${a.displayName} is now SVIP${a.tier}!` : `${a.displayName} upgraded their level to Lv ${a.level}`,
+        body:
+          a.kind === 'SVIP_UP' ? `${a.displayName} is now SVIP${a.tier}!`
+          : a.kind === 'CP_LOVE' ? `💍 ${a.displayName} and ${a.partnerName} are now Love CP!`
+          : `${a.displayName} upgraded their level to Lv ${a.level}`,
         payload: { ...a },
         sender: null,
       }),

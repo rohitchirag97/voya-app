@@ -27,6 +27,7 @@ import {
   type Post,
   type UserProfile,
 } from '../api';
+import { CpSection, ProposeCpSheet } from '../components/Cp';
 import { OfficialMark } from '../components/Official';
 import { SvipBadge } from '../components/Svip';
 import { FollowIcon } from '../components/Icons';
@@ -64,6 +65,7 @@ export function UserProfileScreen({
   const [cardH, setCardH] = useState(380); // the cover decoration / photos are drawn at the cover's real height
   const [coversOpen, setCoversOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [cpOpen, setCpOpen] = useState(false);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -233,7 +235,15 @@ export function UserProfileScreen({
             </View>
           )}
           {section === 'profile' ? (
-            <DetailsSection profile={p} />
+            <>
+              <CpSection
+                relationships={p.relationships ?? []}
+                isMe={p.isMe}
+                onPropose={!p.isMe && !p.relationships?.some(r => r.user.userId === nav.me?.userId) ? () => setCpOpen(true) : undefined}
+                onEnded={pairId => setP({ ...p, relationships: p.relationships.filter(r => r.pairId !== pairId) })}
+              />
+              <DetailsSection profile={p} />
+            </>
           ) : section === 'badges' ? (
             <BadgesSection profile={p} onChange={pinnedBadges => setP({ ...p, pinnedBadges })} />
           ) : section === 'posts' ? (
@@ -260,6 +270,7 @@ export function UserProfileScreen({
           gifOk={p.svip >= 3} // SVIP3 perk: animated profile picture
         />
       ) : null}
+      {p && !p.isMe ? <ProposeCpSheet visible={cpOpen} onClose={() => setCpOpen(false)} to={p} /> : null}
       {p?.isMe ? (
         <CoverSheet
           visible={coversOpen}

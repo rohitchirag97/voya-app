@@ -2,6 +2,7 @@ import { Handshake, Send } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, errorText, newId, type DirectMessage, type StaffRole } from '../api';
+import { CpRequestCard } from '../components/Cp';
 import { OfficialMark } from '../components/Official';
 import { Avatar, Screen, s, toast } from '../components/ui';
 import { useNav } from '../nav';
@@ -51,6 +52,10 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
       const ours = (m.senderId === userId && m.recipientId === me.userId) || (m.senderId === me.userId && m.recipientId === userId);
       if (ours) add([m]);
     });
+    // A CP request answered, cancelled or expired: refresh its card.
+    sock.on('cp:update', (e: { proposalId: string; status: NonNullable<DirectMessage['cp']>['status'] }) =>
+      setMessages((prev) => prev && prev.map((m) => (m.cp?.id === e.proposalId ? { ...m, cp: { ...m.cp, status: e.status } } : m))),
+    );
     sock.on('connect', () => load()); // catch up on anything missed while reconnecting
     sock.connect();
     return () => {
@@ -108,6 +113,9 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
           ListEmptyComponent={<Text style={[s.muted, st.empty]}>Say hi to {displayName}</Text>}
           renderItem={({ item }) => {
             const mine = item.senderId === me.userId;
+            if (item.cp) {
+              return <CpRequestCard cp={item.cp} meId={me.userId} onChange={(cp) => setMessages((prev) => prev && prev.map((m) => (m.id === item.id ? { ...m, cp } : m)))} />;
+            }
             return (
               <View style={[st.bubble, mine ? st.mine : st.theirs]}>
                 <Text style={[st.text, !mine && { color: colors.text }]}>{item.body}</Text>

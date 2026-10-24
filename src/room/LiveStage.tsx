@@ -12,13 +12,14 @@ import { ChatList, Composer } from './ChatPanel';
 import type { GameKey } from './GameSheet';
 import type { RoomState } from './useRoom';
 import { VideoTile } from './VideoTile';
+import { MusicPill } from './MusicPanel';
 
 const RED = '#FF4D6D';
 const BLUE = '#3B82F6';
 const short = (n: number) => (n >= 1e6 ? +(n / 1e6).toFixed(2) + 'M' : n >= 1000 ? +(n / 1000).toFixed(1) + 'K' : String(n));
 
 // The live stream screen: host video (split screen during a PK), co-host tiles, chat and controls on top.
-export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGames, onMessages, onEmotes, onOpenGame, onClose, tag }: {
+export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGames, onMessages, onEmotes, onMusic, onOpenGame, onClose, tag }: {
   room: RoomState;
   snap: RoomSnapshot;
   meId: string;
@@ -28,6 +29,7 @@ export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGam
   onGames: () => void;
   onMessages: () => void;
   onEmotes: () => void;
+  onMusic: () => void;
   onOpenGame: (g: GameKey) => void;
   onClose: () => void; // leave (viewers / co-hosts) or end (host)
   tag: { userId: string; handle: string; n: number } | null;
@@ -215,6 +217,9 @@ export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGam
 
       {/* ---------- chat + composer ---------- */}
       <View style={[st.chat, { paddingBottom: insets.bottom }]}>
+        <View style={st.musicPill}>
+          <MusicPill onPress={onMusic} />
+        </View>
         <View style={st.chatList}>
           <ChatList
             messages={room.messages}
@@ -546,6 +551,7 @@ const st = StyleSheet.create({
   ctrlGold: { backgroundColor: 'rgba(232,146,12,0.85)', borderColor: '#FFD86B' },
   chat: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   chatList: { height: 260, paddingRight: 64 },
+  musicPill: { alignSelf: 'flex-start', marginLeft: space(3), marginBottom: space(1) },
   sheetNote: { color: colors.muted, textAlign: 'center', marginVertical: space(6) },
   pickRow: { flexDirection: 'row', alignItems: 'center', gap: space(3), padding: space(2), borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.05)' },
   pickName: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '800' },

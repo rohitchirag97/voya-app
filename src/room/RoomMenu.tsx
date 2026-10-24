@@ -1,4 +1,4 @@
-import { Dices, Gem } from 'lucide-react-native';
+import { ChevronRight, Dices, Gem, Music2 } from 'lucide-react-native';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Charisma, Pk, Seat } from '../api';
@@ -6,15 +6,14 @@ import { SeatLayoutPicker } from '../components/SeatLayoutPicker';
 import { Sheet, rs as s } from '../components/ui';
 import { roomColors as colors, radius, space } from '../theme';
 import { GameCards, type GameKey } from './GameSheet';
-import { MusicSection } from './MusicSection';
 import { PkSection } from './Pk';
 
 // The room's "More" sheet: one place for extras, by section. New features go in as another section.
-export function RoomMenu({ visible, onClose, onPickGame, music, seats, charisma, pk, ludo }: {
+export function RoomMenu({ visible, onClose, onPickGame, onMusic, seats, charisma, pk, ludo }: {
   visible: boolean;
   onClose: () => void;
   onPickGame: (g: GameKey) => void;
-  music: boolean; // on a seat: your audio goes out, so a song can ride along
+  onMusic: () => void;
   seats: { count: number; onChange: (n: number) => void } | null; // owner/admins only; null hides the section
   charisma: { state: Charisma | null; onToggle: (on: boolean) => void } | null; // owner/admins only
   pk: { seats: Seat[]; state: Pk | null; onStart: (a: string, b: string, minutes: number) => void; onStop: () => void } | null; // owner/admins only
@@ -27,12 +26,19 @@ export function RoomMenu({ visible, onClose, onPickGame, music, seats, charisma,
           <Text style={st.heading}>Games</Text>
           <GameCards onPick={onPickGame} />
         </View>
-        {music ? (
-          <View style={st.section}>
-            <Text style={st.heading}>Music</Text>
-            <MusicSection />
-          </View>
-        ) : null}
+        <View style={st.section}>
+          <Text style={st.heading}>Music</Text>
+          <Pressable onPress={onMusic} accessibilityRole="button" style={st.row}>
+            <View style={[st.gem, st.musicIcon]}>
+              <Music2 size={18} color="#8FD3FF" strokeWidth={2.4} />
+            </View>
+            <View style={st.grow}>
+              <Text style={st.title}>Play music</Text>
+              <Text style={s.muted}>Make a playlist from your phone's songs. Everyone in the room hears it while you're on a seat.</Text>
+            </View>
+            <ChevronRight size={20} color={colors.muted} />
+          </Pressable>
+        </View>
         {ludo ? (
           <View style={st.section}>
             <Text style={st.heading}>Ludo</Text>
@@ -121,6 +127,7 @@ const st = StyleSheet.create({
   start: { backgroundColor: colors.primary },
   stop: { backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   toggleText: { color: '#fff', fontWeight: '800' },
+  musicIcon: { backgroundColor: 'rgba(95,180,255,0.14)', borderColor: 'rgba(143,211,255,0.35)' },
   ludoIcon: { backgroundColor: 'rgba(255,201,77,0.14)', borderColor: 'rgba(255,211,107,0.4)' },
   reset: { alignSelf: 'flex-start', paddingVertical: space(1) },
   resetText: { color: '#FF8AC6', fontWeight: '700', fontSize: 13 },

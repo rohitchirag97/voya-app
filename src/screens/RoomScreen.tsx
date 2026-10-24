@@ -18,6 +18,7 @@ import { EmoteSheet } from '../room/Emotes';
 import { confirmDialog } from '../components/Dialog';
 import { RoomDrawer } from '../room/RoomDrawer';
 import { RoomMenu } from '../room/RoomMenu';
+import { MusicPanel, MusicPill } from '../room/MusicPanel';
 import { RoomStatChips, useRoomStats } from '../room/RoomStats';
 import { RoomWidgets } from '../room/RoomWidgets';
 import { TopGiftersChip } from '../room/TopGifters';
@@ -38,6 +39,7 @@ export function RoomScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [gamesOpen, setGamesOpen] = useState(false);
   const [emotesOpen, setEmotesOpen] = useState(false);
+  const [musicOpen, setMusicOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Gift animations off: drop queued gifts instead of letting them pile up unseen.
   const giftsOff = room?.snap?.giftAnimations === false && room.gifts.length > 0;
@@ -121,6 +123,7 @@ export function RoomScreen() {
           onGames={() => setGamesOpen(true)}
           onMessages={() => nav.push({ name: 'home', tab: 'messages' })}
           onEmotes={() => setEmotesOpen(true)}
+          onMusic={() => setMusicOpen(true)}
           onOpenGame={nav.openGame}
           onClose={endOrLeave}
           tag={tag}
@@ -215,6 +218,9 @@ export function RoomScreen() {
             onMentionsSeen={room.markMentionsSeen}
             roles={{ hostUserId: snap.hostUserId, admins: snap.admins }}
           />
+          <View style={st.musicPill}>
+            <MusicPill onPress={() => setMusicOpen(true)} />
+          </View>
           <RoomWidgets
             pk={snap.pk}
             onUserPress={setCardUser}
@@ -365,7 +371,10 @@ export function RoomScreen() {
           setMenuOpen(false);
           nav.openGame(g); // the game lives at the app root, so it outlives this room
         }}
-        music={!!mySeat}
+        onMusic={() => {
+          setMenuOpen(false);
+          setMusicOpen(true);
+        }}
         seats={
           room.isMod && !live // live streams keep their 4 seats
             ? {
@@ -404,6 +413,8 @@ export function RoomScreen() {
         }
       />
 
+      <MusicPanel visible={musicOpen} onClose={() => setMusicOpen(false)} seated={!!mySeat} />
+
       <Sheet visible={gamesOpen} onClose={() => setGamesOpen(false)} title="Games">
         <GameCards
           onPick={(g) => {
@@ -417,6 +428,7 @@ export function RoomScreen() {
 }
 
 const st = StyleSheet.create({
+  musicPill: { position: 'absolute', top: space(1), right: space(2) },
   center: { alignItems: 'center', justifyContent: 'center', gap: space(3) },
   liveScreen: { backgroundColor: '#000' },
   header: { flexDirection: 'row', alignItems: 'center', gap: space(2), paddingHorizontal: space(4), paddingTop: space(2) },
