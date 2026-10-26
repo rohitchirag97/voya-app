@@ -19,6 +19,7 @@ import {
   followLabel,
   getProfile,
   likeProfile,
+  presenceText,
   isFriend,
   listCosmetics,
   listPosts,
@@ -193,6 +194,12 @@ export function UserProfileScreen({
                   <GenderAge gender={p.gender} birthday={p.birthday} />
                 </View>
                 <UserIds publicId={p.publicId} specialId={p.specialId} light />
+                {!p.isMe && presenceText(p) ? (
+                  <View style={st.presence}>
+                    <View style={[st.presenceDot, !p.online && st.presenceDotOff]} />
+                    <Text style={st.presenceText}>{presenceText(p)}</Text>
+                  </View>
+                ) : null}
                 <View style={st.chipRow}>
                   <SvipBadge tier={p.svip} size="md" />
                   {p.level ? <LevelBadge level={p.level.level} size="md" /> : null}
@@ -200,12 +207,17 @@ export function UserProfileScreen({
                 {p.inRoom ? <InRoomPill room={p.inRoom} mine={p.isMe} /> : null}
               </View>
               {p.isMe ? (
-                // Your own total (not a button): outlined until someone likes you, then filled.
-                <View style={st.likeTotal} accessibilityLabel={`${p.likes} profile likes`}>
+                // Your own total: outlined until someone likes you, then filled. Tap to see who liked you and when.
+                <Pressable
+                  onPress={() => nav.push({ name: 'people', userId: p.userId, kind: 'likes' })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${p.likes} profile likes. See who liked you`}
+                  style={st.likeTotal}
+                >
                   <Heart size={24} color={p.likes ? '#FF3D6E' : '#fff'} fill={p.likes ? '#FF3D6E' : 'transparent'} strokeWidth={2.2} />
                   <Text style={st.likeTotalText}>{p.likes}</Text>
                   <Text style={st.likeTotalLabel}>{p.likes === 1 ? 'like' : 'likes'}</Text>
-                </View>
+                </Pressable>
               ) : (
                 <LikeButton profile={p} onChange={l => setP({ ...p, ...l })} />
               )}
@@ -647,6 +659,10 @@ const st = StyleSheet.create({
   hero: { marginHorizontal: -space(4), gap: space(3), paddingBottom: space(10), borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' },
   heroRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: space(4), gap: space(3) },
   heroLeft: { flex: 1, alignItems: 'flex-start', gap: space(2) },
+  presence: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  presenceDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
+  presenceDotOff: { backgroundColor: 'rgba(255,255,255,0.5)' },
+  presenceText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   avatarRow: { flexDirection: 'row', alignItems: 'flex-end' },
   // Pulled left over the frame's empty margin so the two pictures sit together.
   partner: { alignItems: 'center', gap: 2, maxWidth: 84, marginLeft: -26, marginBottom: 6 },

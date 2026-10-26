@@ -1,4 +1,4 @@
-import { ChevronLeft, Eye, Users } from 'lucide-react-native';
+import { ChevronLeft, Eye, Heart, Users } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { api, errorText, setFollowing, timeAgo, type Person, type PeopleKind } from '../api';
@@ -11,8 +11,8 @@ import { useNav } from '../nav';
 import { colors, gradients, radius, space } from '../theme';
 import { Gradient } from '../components/Gradient';
 
-const titles: Record<PeopleKind, string> = { followers: 'Followers', following: 'Following', visitors: 'Profile visitors' };
-const path = (kind: PeopleKind, userId: string) => (kind === 'visitors' ? '/me/visitors' : `/users/${userId}/${kind}`);
+const titles: Record<PeopleKind, string> = { followers: 'Followers', following: 'Following', visitors: 'Profile visitors', likes: 'Profile likes' };
+const path = (kind: PeopleKind, userId: string) => (kind === 'visitors' ? '/me/visitors' : kind === 'likes' ? '/me/likes' : `/users/${userId}/${kind}`);
 
 // Followers / Following of any profile, or your own profile visitors.
 export function PeopleScreen({ userId, kind }: { userId: string; kind: PeopleKind }) {
@@ -65,9 +65,10 @@ export function PeopleScreen({ userId, kind }: { userId: string; kind: PeopleKin
           refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load()} tintColor={colors.primary} colors={[colors.primary]} />}
           ListEmptyComponent={
             <View style={st.empty}>
-              <View style={st.emptyIcon}>{kind === 'visitors' ? <Eye size={30} color={colors.primary} /> : <Users size={30} color={colors.primary} />}</View>
-              <Text style={s.h2}>{kind === 'visitors' ? 'No visitors yet' : kind === 'followers' ? 'No followers yet' : 'Not following anyone yet'}</Text>
+              <View style={st.emptyIcon}>{kind === 'visitors' ? <Eye size={30} color={colors.primary} /> : kind === 'likes' ? <Heart size={30} color={colors.primary} /> : <Users size={30} color={colors.primary} />}</View>
+              <Text style={s.h2}>{kind === 'visitors' ? 'No visitors yet' : kind === 'likes' ? 'No likes yet' : kind === 'followers' ? 'No followers yet' : 'Not following anyone yet'}</Text>
               {kind === 'visitors' ? <Text style={[s.muted, { textAlign: 'center' }]}>People who open your profile show up here.</Text> : null}
+              {kind === 'likes' ? <Text style={[s.muted, { textAlign: 'center' }]}>People who tap the heart on your profile show up here.</Text> : null}
             </View>
           }
           renderItem={({ item }) => <PersonRow person={item} kind={kind} onFollow={(on) => setFollow(item.userId, on)} />}
@@ -110,6 +111,8 @@ function PersonRow({ person: x, kind, onFollow }: { person: Person; kind: People
             Visited {timeAgo(x.at)}
             {x.visits && x.visits > 1 ? ` · ${x.visits} times` : ''}
           </Text>
+        ) : kind === 'likes' ? (
+          <Text style={st.meta}>❤️ Liked your profile {timeAgo(x.at)}</Text>
         ) : (
           <UserIds publicId={x.publicId} specialId={x.specialId} />
         )}

@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { api, ApiError, loadSession, setSignedOutHandler, type Me } from './src/api';
 import { NavContext, type ActiveRoom, type Nav, type OpenGame, type Route } from './src/nav';
 import { DialogHost } from './src/components/Dialog';
+import { AppEvents } from './src/services/AppEvents';
 import { GameHost } from './src/room/GameSheet';
 import { MiniRoom, RoomHost } from './src/room/RoomSession';
 import { CoinSellersScreen } from './src/screens/CoinSellersScreen';
@@ -16,6 +17,7 @@ import { NewPostScreen } from './src/screens/NewPostScreen';
 import { OtpScreen } from './src/screens/OtpScreen';
 import { PeopleScreen } from './src/screens/PeopleScreen';
 import { CpScreen } from './src/screens/CpScreen';
+import { FriendsOnlineScreen } from './src/screens/FriendsOnlineScreen';
 import { PostScreen } from './src/screens/PostsScreen';
 import { ProfileSetupScreen } from './src/screens/ProfileSetupScreen';
 import { RechargeScreen } from './src/screens/RechargeScreen';
@@ -151,6 +153,8 @@ export default function App() {
         <CommentsScreen key={route.postId} postId={route.postId} postAuthorId={route.postAuthorId} />
       ) : route.name === 'people' ? (
         <PeopleScreen key={route.userId + route.kind} userId={route.userId} kind={route.kind} />
+      ) : route.name === 'friendsOnline' ? (
+        <FriendsOnlineScreen />
       ) : route.name === 'cp' ? (
         <CpScreen key={route.userId} userId={route.userId} />
       ) : route.name === 'settings' ? (
@@ -185,6 +189,8 @@ export default function App() {
         {/* Outside the room host: the game keeps running (open or minimized) after leaving the room. */}
         {me ? <GameHost game={game} onMinimize={nav.minimizeGame} onRestore={() => game && nav.openGame(game.key)} onClose={nav.closeGame} /> : null}
         <DialogHost />
+        {/* New-message badge and notifications, and friends' room invites, on every screen. */}
+        {me ? <AppEvents /> : null}
       </NavContext.Provider>
     </SafeAreaProvider>
   );

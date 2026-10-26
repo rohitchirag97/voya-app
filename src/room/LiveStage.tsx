@@ -1,4 +1,4 @@
-import { Camera, CameraOff, Clock, Mic, RefreshCcw, Sparkles, Swords, UserMinus, UserPlus, Users, X } from 'lucide-react-native';
+import { Camera, CameraOff, Clock, Forward, Mic, RefreshCcw, Sparkles, Swords, UserMinus, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ const BLUE = '#3B82F6';
 const short = (n: number) => (n >= 1e6 ? +(n / 1e6).toFixed(2) + 'M' : n >= 1000 ? +(n / 1000).toFixed(1) + 'K' : String(n));
 
 // The live stream screen: host video (split screen during a PK), co-host tiles, chat and controls on top.
-export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGames, onMessages, onEmotes, onMusic, onOpenGame, onClose, tag }: {
+export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGames, onMessages, onEmotes, onMusic, onShare, onOpenGame, onClose, tag }: {
   room: RoomState;
   snap: RoomSnapshot;
   meId: string;
@@ -30,6 +30,7 @@ export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGam
   onMessages: () => void;
   onEmotes: () => void;
   onMusic: () => void;
+  onShare: () => void; // invite friends
   onOpenGame: (g: GameKey) => void;
   onClose: () => void; // leave (viewers / co-hosts) or end (host)
   tag: { userId: string; handle: string; n: number } | null;
@@ -175,6 +176,9 @@ export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGam
           <View style={st.liveTag}>
             <Text style={st.liveTagText}>LIVE</Text>
           </View>
+          <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="Invite friends" hitSlop={8} style={st.close}>
+            <Forward size={17} color="#fff" strokeWidth={2.4} />
+          </Pressable>
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={isHost ? 'End live' : 'Leave live'} hitSlop={8} style={st.close}>
             <X size={20} color="#fff" strokeWidth={2.6} />
           </Pressable>
@@ -228,6 +232,7 @@ export function LiveStage({ room, snap, meId, onUserPress, onGift, onMore, onGam
             onEndReached={room.loadOlder}
             onUserPress={onUserPress}
             onOpenGame={onOpenGame}
+            onEmote={onEmotes}
             unseenMentions={room.unseenMentions}
             onMentionsSeen={room.markMentionsSeen}
             roles={{ hostUserId: snap.hostUserId, admins: snap.admins }}

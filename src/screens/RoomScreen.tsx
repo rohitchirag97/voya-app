@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { errorText, roomCoverUri, type Seat } from '../api';
-import { Armchair, Lock, LockOpen, Menu, UserPlus, Users } from 'lucide-react-native';
+import { Armchair, Forward, Lock, LockOpen, Menu, UserPlus, Users } from 'lucide-react-native';
 import { Gradient } from '../components/Gradient';
 import { Avatar, IconButton, Screen, Sheet, SheetAction, rs as s, toast } from '../components/ui';
 import { useNav } from '../nav';
@@ -19,6 +19,7 @@ import { confirmDialog } from '../components/Dialog';
 import { RoomDrawer } from '../room/RoomDrawer';
 import { RoomMenu } from '../room/RoomMenu';
 import { MusicPanel, MusicPill } from '../room/MusicPanel';
+import { InviteSheet } from '../room/InviteSheet';
 import { RoomStatChips, useRoomStats } from '../room/RoomStats';
 import { RoomWidgets } from '../room/RoomWidgets';
 import { TopGiftersChip } from '../room/TopGifters';
@@ -41,6 +42,7 @@ export function RoomScreen() {
   const [gamesOpen, setGamesOpen] = useState(false);
   const [emotesOpen, setEmotesOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Gift animations off: drop queued gifts instead of letting them pile up unseen.
   const giftsOff = room?.snap?.giftAnimations === false && room.gifts.length > 0;
@@ -108,7 +110,7 @@ export function RoomScreen() {
   };
 
   return (
-    <Screen backdrop={!live} backdropTheme={snap.background} top={!live} bottom={!live} style={live ? st.liveScreen : undefined}>
+    <Screen backdrop={!live} backdropTheme={snap.background} backdropImage={roomCoverUri(snap.backgroundUrl)} top={!live} bottom={!live} style={live ? st.liveScreen : undefined}>
       {live ? <StatusBar barStyle="light-content" /> : null}
       {live ? (
         <LiveStage
@@ -125,6 +127,7 @@ export function RoomScreen() {
           onMessages={() => nav.push({ name: 'home', tab: 'messages' })}
           onEmotes={() => setEmotesOpen(true)}
           onMusic={() => setMusicOpen(true)}
+          onShare={() => setInviteOpen(true)}
           onOpenGame={nav.openGame}
           onClose={endOrLeave}
           tag={tag}
@@ -148,6 +151,9 @@ export function RoomScreen() {
             ID {snap.roomId.slice(0, 8)} · {snap.category ?? 'Party'}
           </Text>
         </View>
+        <IconButton label="Invite friends" onPress={() => setInviteOpen(true)} size={36}>
+          <Forward size={18} color={colors.text} />
+        </IconButton>
         <IconButton label="Room menu" onPress={() => setDrawerOpen(true)} size={36}>
           <Menu size={20} color={colors.text} />
         </IconButton>
@@ -218,6 +224,7 @@ export function RoomScreen() {
             onEndReached={room.loadOlder}
             onUserPress={setCardUser}
             onOpenGame={nav.openGame}
+            onEmote={() => setEmotesOpen(true)}
             unseenMentions={room.unseenMentions}
             onMentionsSeen={room.markMentionsSeen}
             roles={{ hostUserId: snap.hostUserId, admins: snap.admins }}
@@ -422,6 +429,13 @@ export function RoomScreen() {
         }
       />
 
+      <InviteSheet
+        visible={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        roomId={snap.roomId}
+        title={snap.title}
+        inRoom={new Set(snap.participants.map((p) => p.userId))}
+      />
       <MusicPanel visible={musicOpen} onClose={() => setMusicOpen(false)} seated={!!mySeat} />
 
       <Sheet visible={gamesOpen} onClose={() => setGamesOpen(false)} title="Games">

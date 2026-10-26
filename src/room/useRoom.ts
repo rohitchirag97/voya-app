@@ -89,7 +89,14 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
 
   // Your own "X joined" notice is skipped: the entrance effect is enough. Everyone else still sees it.
   const notMyEntry = (m: ChatMessage) => !(m.payload?.kind === 'JOIN' && m.payload.userId === me.userId);
-  const addMessages = (list: ChatMessage[]) => setMessages((prev) => byNewest([...list.filter(notMyEntry), ...prev]));
+  // Chat cleared (for me, or by an admin for all): anything from before stays hidden, even when history reloads.
+  const clearedAt = useRef(0);
+  const afterClear = (m: ChatMessage) => new Date(m.createdAt).getTime() > clearedAt.current;
+  const clearLocal = () => {
+    clearedAt.current = Date.now();
+    setMessages([]);
+  };
+  const addMessages = (list: ChatMessage[]) => setMessages((prev) => byNewest([...list.filter(notMyEntry).filter(afterClear), ...prev]));
 
   const loadHistory = useCallback(
     async (older = false) => {
@@ -148,6 +155,7 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
     s.on('room:participant:left', (e: { userId: string }) =>
       setSnap((p) => (p ? { ...p, participants: p.participants.filter((x) => x.userId !== e.userId) } : p)),
     );
+    s.on('room:chat:cleared', (e: { roomId: string }) => e.roomId === roomId && clearLocal());
     s.on('room:chat:new', (m: ChatMessage) => {
       addMessages([m]);
       // Someone tagged me: queue it until it's been on screen (see ChatList).
@@ -306,6 +314,8 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
     isMod: isHost || isAdmin,
     canModerate,
     loadOlder: () => loadHistory(true).catch(() => {}),
+    clearChatForMe: clearLocal,
+    clearChatForAll: () => api('POST', `/rooms/${roomId}/chat/clear`), // owner/admins; everyone's chat empties via the socket
     shiftGift: () => setGifts((q) => q.slice(1)),
     bigWins,
     shiftBigWin: () => setBigWins((q) => q.slice(1)),
@@ -375,6 +385,12 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
       const form = new FormData();
       form.append('file', file as unknown as Blob); // React Native uploads { uri, type, name } straight from disk
       return api<RoomSnapshot>('POST', `/rooms/${roomId}/cover`, form);
+    },
+    // A photo as the room's backdrop (owner/admins); choosing a preset later replaces it.
+    uploadBackground(file: { uri: string; type: string; name: string }) {
+      const form = new FormData();
+      form.append('file', file as unknown as Blob);
+      return api<RoomSnapshot>('POST', `/rooms/${roomId}/background`, form);
     },
     setAdmin: (userId: string, admin: boolean) => api(admin ? 'POST' : 'DELETE', `/rooms/${roomId}/admins/${userId}`),
     listKicked: () => api<KickedUser[]>('GET', `/rooms/${roomId}/kicked`),

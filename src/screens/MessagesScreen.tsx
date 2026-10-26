@@ -1,46 +1,74 @@
 import { MessageCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { errorText, listConversations, timeAgo, type Conversation } from '../api';
+import { errorText, getCards, getPresence, presenceText, timeAgo, type Conversation, type Presence, type UserSummary } from '../api';
+import { getChats, subscribeDms, syncPending } from '../services/DmStore';
 import { CpChip } from '../components/Cp';
 import { OfficialMark } from '../components/Official';
 import { SvipBadge } from '../components/Svip';
 import { LevelBadge } from '../components/Level';
 import { Avatar, Screen, s, toast } from '../components/ui';
 import { useNav } from '../nav';
-import { connectSocket } from '../services/RoomSocket';
 import { colors, radius, space } from '../theme';
 
 // Inbox: every person you've messaged with, latest conversation first.
 export function MessagesScreen() {
   const nav = useNav();
   const me = nav.me!;
-  const [list, setList] = useState<Conversation[] | null>(null);
+  // Chats are saved on this phone; the list follows that copy (the app-wide listener saves new messages).
+  const toList = (cps: Map<string, Conversation['cp']>): Conversation[] =>
+    getChats().map((c) => ({ user: c.peer as UserSummary, lastMessage: c.last, unread: c.unread, cp: cps.get(c.peer.userId) ?? null }));
+  const [cps, setCps] = useState<Map<string, Conversation['cp']>>(new Map());
+  const [list, setList] = useState<Conversation[] | null>(() => toList(new Map()));
   const [loading, setLoading] = useState(false);
 
+  // Your CPs, for the chips next to names.
+  const loadCps = useCallback(
+    () =>
+      getCards([me.userId])
+        .then(({ profiles }) => {
+          const map = new Map<string, Conversation['cp']>((profiles[0]?.relationships ?? []).map((r) => [r.user.userId, { type: r.type, label: r.label, since: r.since, level: r.level }]));
+          setCps(map);
+          setList(toList(map));
+        })
+        .catch(() => {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [me.userId],
+  );
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setList((await listConversations()).conversations);
+      await syncPending(null); // anything waiting on the server
     } catch (e) {
       toast(errorText(e));
-      setList((l) => l ?? []);
     } finally {
+      setList(toList(cps));
       setLoading(false);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cps]);
 
   useEffect(() => {
+    loadCps();
+    return subscribeDms(() => setList(toList(cpsRef.current)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const cpsRef = React.useRef(cps);
+  cpsRef.current = cps;
+
+  // Who's online / last seen, for everyone in the list; refreshed every 30s.
+  const [presence, setPresence] = useState<Record<string, Presence>>({});
+  const peerKey = (list ?? []).map((c) => c.user.userId).join(',');
+  useEffect(() => {
+    if (!peerKey) return;
+    const load = () =>
+      getPresence(peerKey.split(','))
+        .then((r) => setPresence(Object.fromEntries(r.presence.map((p) => [p.userId, p]))))
+        .catch(() => {});
     load();
-    // A new message anywhere moves that conversation to the top.
-    const sock = connectSocket();
-    sock.on('dm:new', () => load());
-    sock.connect();
-    return () => {
-      sock.removeAllListeners();
-      sock.disconnect();
-    };
-  }, [load]);
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, [peerKey]);
 
   return (
     <Screen backdrop bottom={false}>
@@ -72,7 +100,10 @@ export function MessagesScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Chat with ${item.user.displayName}. ${mine ? 'You' : item.user.displayName}: ${m.body}`}
               style={({ pressed }) => [st.row, pressed && { backgroundColor: colors.surfaceHigh }]}>
-              <Avatar id={item.user.userId} name={item.user.displayName} uri={item.user.avatarUrl} size={52} />
+              <View>
+                <Avatar id={item.user.userId} name={item.user.displayName} uri={item.user.avatarUrl} size={52} />
+                {presence[item.user.userId]?.online ? <View style={st.onDot} /> : null}
+              </View>
               <View style={st.mid}>
                 <View style={st.nameRow}>
                   <Text style={st.name} numberOfLines={1}>
@@ -87,8 +118,18 @@ export function MessagesScreen() {
                   {mine ? 'You: ' : ''}
                   {m.body}
                 </Text>
+                {presenceText(presence[item.user.userId]) ? (
+                  <Text style={[st.status, presence[item.user.userId]?.online && st.statusOn]}>{presenceText(presence[item.user.userId])}</Text>
+                ) : null}
               </View>
-              <Text style={st.time}>{timeAgo(m.createdAt)}</Text>
+              <View style={st.side}>
+                <Text style={st.time}>{timeAgo(m.createdAt)}</Text>
+                {item.unread ? (
+                  <View style={st.unread}>
+                    <Text style={st.unreadText}>{item.unread > 99 ? '99+' : item.unread}</Text>
+                  </View>
+                ) : null}
+              </View>
             </Pressable>
           );
         }}
@@ -105,7 +146,13 @@ const st = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { color: colors.text, fontSize: 16, fontWeight: '800', flexShrink: 1 },
   preview: { color: colors.muted, fontSize: 14 },
-  time: { color: colors.muted, fontSize: 12, alignSelf: 'flex-start', marginTop: 4 },
+  status: { color: colors.muted, fontSize: 11.5 },
+  statusOn: { color: '#16A34A', fontWeight: '700' },
+  onDot: { position: 'absolute', right: 1, bottom: 1, width: 14, height: 14, borderRadius: 7, backgroundColor: '#22C55E', borderWidth: 2, borderColor: colors.surface },
+  time: { color: colors.muted, fontSize: 12 },
+  side: { alignSelf: 'stretch', alignItems: 'flex-end', gap: 6, paddingTop: 4 },
+  unread: { minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FF3B5C' },
+  unreadText: { color: '#fff', fontSize: 11, fontWeight: '900' },
   empty: { alignItems: 'center', gap: space(2), marginTop: space(16), paddingHorizontal: space(8) },
   emptyIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryDim },
 });

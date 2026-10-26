@@ -20,10 +20,12 @@ buildscript {
 
 apply plugin: "com.facebook.react.rootproject"
 
-// ZEGOCLOUD Express SDK (im.zego:express-video) is hosted on ZEGO's own Maven repo.
+// ZEGOCLOUD Express SDK (im.zego:express-video) is hosted on ZEGO's own Maven repo; the profile-photo cropper
+// (react-native-image-crop-picker -> uCrop) is on JitPack.
 allprojects {
     repositories {
         maven { url "https://storage.zego.im/maven" }
+        maven { url "https://jitpack.io" }
     }
 }
 

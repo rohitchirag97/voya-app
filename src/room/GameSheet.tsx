@@ -86,7 +86,9 @@ export function GameHost({ game, onMinimize, onRestore, onClose }: { game: OpenG
   if (!game) return null;
   const meta = gameMeta(game.key);
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    // A real layer above the whole room: Android stacks by elevation, and room extras (CP links, emotes, the gift
+    // combo) carry their own; collapsable={false} keeps this view from being flattened away.
+    <View style={[StyleSheet.absoluteFill, st.layer]} pointerEvents="box-none" collapsable={false}>
       {minimized ? null : <Pressable style={st.backdrop} onPress={onMinimize} accessibilityLabel="Minimize game" />}
       <Animated.View
         pointerEvents={minimized ? 'none' : 'auto'}
@@ -139,6 +141,7 @@ function GameBubble({ game, onOpen, onClose }: { game: GameKey; onOpen: () => vo
 }
 
 const st = StyleSheet.create({
+  layer: { zIndex: 100, elevation: 100 },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
   panel: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: 'hidden', elevation: 24 },
   web: { flex: 1 },

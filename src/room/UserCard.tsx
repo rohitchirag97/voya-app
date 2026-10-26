@@ -32,7 +32,8 @@ import {
 import { DecorBanner, FRAME_SCALE, FramedAvatar } from '../components/Decor';
 import { FollowIcon, RoleTag, roleOf } from '../components/Icons';
 import { BadgeRow } from '../components/Badges';
-import { CP_LOOK, ProposeCpSheet } from '../components/Cp';
+import { CP_LOOK, daysSince, ProposeCpSheet } from '../components/Cp';
+import { useCatalog } from './catalog';
 import { OfficialMark } from '../components/Official';
 import { SvipBadge } from '../components/Svip';
 import { UserIds } from '../components/UserIds';
@@ -105,6 +106,7 @@ export function UserCard({
   const seat = snap?.seats.find(x => !!userId && x.occupant?.userId === userId);
   const isMe = userId === me.userId;
   const love = p?.relationships?.find(r => r.type === 'LOVE');
+  const catalog = useCatalog();
   const isAdmin = !!userId && !!snap?.admins.includes(userId);
   const canMod = !!userId && !!room?.canModerate(userId);
   const role = snap
@@ -249,29 +251,57 @@ export function UserCard({
         }
         hero={
           p ? (
-            <Pressable
-              onPress={() => onOpenProfile(p.userId)}
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${p.displayName}'s profile`}
-              accessibilityHint="The room keeps playing in a small bubble"
-              // A frame is drawn bigger than the picture; pull it up so the picture stays centred on the edge.
-              style={
-                p.avatarFrame
-                  ? {
-                      marginTop:
-                        -((SHEET_HERO - 12) * FRAME_SCALE - SHEET_HERO) / 2,
-                    }
-                  : [st.heroRing, { borderColor: ringColor }]
-              }
-            >
-              <FramedAvatar
-                id={p.userId}
-                name={p.displayName}
-                uri={p.avatarUrl}
-                size={SHEET_HERO - 12}
-                frameSvg={p.avatarFrame?.svg}
-              />
-            </Pressable>
+            <View style={st.heroPair} pointerEvents="box-none">
+              <Pressable
+                onPress={() => onOpenProfile(p.userId)}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${p.displayName}'s profile`}
+                accessibilityHint="The room keeps playing in a small bubble"
+                // A frame is drawn bigger than the picture; pull it up so the picture stays centred on the edge.
+                style={
+                  p.avatarFrame
+                    ? {
+                        marginTop:
+                          -((SHEET_HERO - 12) * FRAME_SCALE - SHEET_HERO) / 2,
+                      }
+                    : [st.heroRing, { borderColor: ringColor }]
+                }
+              >
+                <FramedAvatar
+                  id={p.userId}
+                  name={p.displayName}
+                  uri={p.avatarUrl}
+                  size={SHEET_HERO - 12}
+                  frameSvg={p.avatarFrame?.svg}
+                />
+              </Pressable>
+              {/* Love CP: the partner's framed picture tucked beside theirs, a heart where they meet. */}
+              {love ? (
+                <>
+                  <View style={st.loveHeart} pointerEvents="none">
+                    <Text style={st.loveHeartText}>💗</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => onOpenProfile(love.user.userId)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Love CP: ${love.user.displayName}. Open their profile`}
+                    style={st.partner}
+                  >
+                    <FramedAvatar
+                      id={love.user.userId}
+                      name={love.user.displayName}
+                      uri={love.user.avatarUrl}
+                      size={PARTNER}
+                      frameSvg={
+                        love.user.frameId
+                          ? catalog.frames[love.user.frameId]?.svg
+                          : undefined
+                      }
+                    />
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
           ) : null
         }
       >
@@ -309,7 +339,8 @@ export function UserCard({
                 style={[st.love, { color: CP_LOOK.LOVE.tint }]}
                 numberOfLines={1}
               >
-                {CP_LOOK.LOVE.emoji} Love CP with {love.user.displayName}
+                {CP_LOOK.LOVE.emoji} Love CP with {love.user.displayName} · Lv.
+                {love.level.level} · {daysSince(love.since)}d
               </Text>
             ) : null}
             {p.week ? (
@@ -454,8 +485,27 @@ export function UserCard({
   );
 }
 
+const PARTNER = 56; // Love CP partner's picture beside the hero
+
 const st = StyleSheet.create({
   love: { fontSize: 13, fontWeight: '700' },
+  heroPair: { flexDirection: 'row', alignItems: 'flex-end' },
+  // Pulled in over the hero's edge so the two pictures sit together, like on the profile.
+  partner: { marginLeft: -22, marginBottom: 2 },
+  loveHeart: {
+    zIndex: 2,
+    elevation: 9,
+    marginLeft: -16,
+    marginBottom: 30,
+    marginRight: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  loveHeartText: { fontSize: 12 },
   body: { alignItems: 'center', gap: space(2), paddingTop: space(2) },
   // Ring = card colour outside, role colour inside, so the picture looks cut into the card's edge.
   heroRing: {

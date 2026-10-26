@@ -1,7 +1,7 @@
 import { DoorOpen, Mic, X } from 'lucide-react-native';
 import React, { createContext, useContext, useEffect } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { errorText, type Me } from '../api';
+import { errorText, roomCoverUri, type Me } from '../api';
 import { showDialog } from '../components/Dialog';
 import { DOCK_BOTTOM, FloatingBubble } from '../components/FloatingBubble';
 import { Gradient } from '../components/Gradient';
@@ -81,7 +81,8 @@ export function MiniRoom({ onOpen, onLeave }: { onOpen: () => void; onLeave: () 
     <FloatingBubble id="room" size={56} bottom={DOCK_BOTTOM}>
       <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`Return to ${snap.title}`} style={st.roomBubble}>
         {snap.coverUrl ? (
-          <Image source={{ uri: snap.coverUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          // Covers are stored as server paths ("/v1/uploads/…"): make them full URLs, like the room screen does.
+          <Image source={{ uri: roomCoverUri(snap.coverUrl)! }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
           <Gradient colors={tintPairFor(snap.roomId)} style={[StyleSheet.absoluteFill, st.center]}>
             <Text style={st.initial}>{snap.title.slice(0, 1).toUpperCase()}</Text>

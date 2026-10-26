@@ -2,6 +2,7 @@ import { Cake, Camera, ChevronRight, Gem, ImagePlus, MapPin, Palette, Pin, Spark
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import CropPicker from 'react-native-image-crop-picker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { SvgXml } from 'react-native-svg';
 import { addCover, api, errorText, imageUri, removeAvatar, setCovers, uploadAvatar, type UserProfile } from '../api';
@@ -310,10 +311,36 @@ export async function pickPhoto(maxSide: number, original = false) {
   return a?.uri ? { uri: a.uri, type: a.type ?? 'image/jpeg', name: a.fileName ?? 'photo.jpg' } : null;
 }
 
-// Pick a photo and make it your profile picture. Resolves with the new URL, or undefined if cancelled / failed.
-// `gif`: SVIP3+ may use an animated GIF (picked untouched; the server checks the tier too).
+// Pick a profile picture, then move and zoom it inside a circle (native cropper). Resolves null when cancelled.
+// `gif`: SVIP3+ may use an animated GIF, kept untouched (cropping would freeze it; the server checks the tier too).
+export async function pickAvatar(gif = false) {
+  try {
+    const picked = await CropPicker.openPicker({ mediaType: 'photo' });
+    if (gif && picked.mime === 'image/gif') {
+      if ((picked.size ?? 0) > 2 * 1024 * 1024) return toast('GIF is too large (max 2 MB)'), null;
+      return { uri: picked.path, type: 'image/gif', name: 'avatar.gif' };
+    }
+    const c = await CropPicker.openCropper({
+      path: picked.path,
+      mediaType: 'photo',
+      width: 800,
+      height: 800,
+      cropperCircleOverlay: true,
+      cropperToolbarTitle: 'Move and scale',
+      cropperActiveWidgetColor: colors.primary,
+      compressImageQuality: 0.85,
+      forceJpg: true,
+    });
+    return { uri: c.path, type: 'image/jpeg', name: 'avatar.jpg' };
+  } catch (e) {
+    if ((e as { code?: string })?.code !== 'E_PICKER_CANCELLED') toast(errorText(e));
+    return null;
+  }
+}
+
+// Pick and crop a photo, then make it your profile picture. Resolves with the new URL, or undefined if cancelled / failed.
 export async function chooseAvatar(gif = false) {
-  const file = await pickPhoto(800, gif);
+  const file = await pickAvatar(gif);
   if (!file) return undefined;
   try {
     return (await uploadAvatar(file)).avatarUrl;

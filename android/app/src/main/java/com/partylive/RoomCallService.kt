@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -16,6 +17,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.facebook.react.BaseReactPackage
 import com.facebook.react.bridge.NativeModule
+import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -79,8 +81,44 @@ class RoomCallModule(private val ctx: ReactApplicationContext) : ReactContextBas
     ctx.stopService(Intent(ctx, RoomCallService::class.java))
   }
 
+  // A new direct message while the app is in the background. One notification per sender (newer replaces older);
+  // tapping it opens the app. Silently skipped without the notification permission (Android 13+).
+  // On/off app settings kept on the phone (Settings > Notifications); cleared on uninstall (allowBackup is off).
+  private val settings get() = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+  @ReactMethod
+  fun getSetting(key: String, fallback: Boolean, promise: Promise) {
+    promise.resolve(settings.getBoolean(key, fallback))
+  }
+
+  @ReactMethod
+  fun setSetting(key: String, value: Boolean) {
+    settings.edit().putBoolean(key, value).apply()
+  }
+
+  @ReactMethod
+  fun notifyMessage(senderId: String, title: String, body: String) {
+    if (!settings.getBoolean(SETTING_MESSAGES, true)) return // turned off in Settings > Notifications
+    if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+    val nm = ctx.getSystemService(NotificationManager::class.java)
+    if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel(MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH))
+    val open = PendingIntent.getActivity(ctx, 0, ctx.packageManager.getLaunchIntentForPackage(ctx.packageName), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    val n = NotificationCompat.Builder(ctx, MESSAGES)
+      .setSmallIcon(ctx.applicationInfo.icon)
+      .setContentTitle(title)
+      .setContentText(body)
+      .setContentIntent(open)
+      .setAutoCancel(true)
+      .setPriority(NotificationCompat.PRIORITY_HIGH)
+      .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+      .build()
+    nm.notify("dm:$senderId", 0, n)
+  }
+
   companion object {
     const val NAME = "RoomCall"
+    const val MESSAGES = "messages"
+    const val SETTING_MESSAGES = "notify_messages"
   }
 }
 

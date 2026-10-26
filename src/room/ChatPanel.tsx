@@ -1,6 +1,6 @@
 import { Armchair, AtSign, Check, ChevronDown, ChevronRight, Coins, Crown, Dices, Gift, Heart, LayoutGrid, Mail, MessageSquareText, Mic, MicOff, Send, ShieldCheck, Smile, Sparkles, Star, UserPlus, X } from 'lucide-react-native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View, type ListViewToken } from 'react-native';
+import { FlatList, Keyboard, Pressable, StyleSheet, Text, TextInput, type ListViewToken, View } from 'react-native';
 import { errorText, setFollowing, type ChatMessage, type Participant } from '../api';
 import { FramedAvatar } from '../components/Decor';
 import { OfficialMark } from '../components/Official';
@@ -11,6 +11,8 @@ import { LevelBadge } from '../components/Level';
 import { useCatalog } from './catalog';
 import { Avatar, IconButton, toast } from '../components/ui';
 import { roomColors as colors, gradients, radius, space } from '../theme';
+import { EMOTES } from './Emotes';
+import { useUnreadDms } from '../services/AppEvents';
 import type { GameKey } from './GameSheet';
 import type { Mention } from './useRoom';
 
@@ -20,20 +22,30 @@ const TRAILING_MENTION = /@([^\s@]*)$/;
 const mentionSplitter = (names: string[]) =>
   new RegExp(`(${names.sort((a, b) => b.length - a.length).map((n) => '@' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'u');
 
+// userId -> display name of everyone seen in rooms this app session (never shrinks; names are short strings).
+const knownNames = new Map<string, string>();
+
 type Roles = { hostUserId: string; admins: string[] };
 
-export function ChatList({ messages, participants, meId, onEndReached, onUserPress, onOpenGame, unseenMentions, onMentionsSeen, roles }: {
+export function ChatList({ messages, participants, meId, onEndReached, onUserPress, onOpenGame, onEmote, unseenMentions, onMentionsSeen, roles }: {
   messages: ChatMessage[];
   participants: Participant[];
   meId: string;
   onEndReached: () => void;
   onUserPress: (userId: string) => void;
   onOpenGame: (g: GameKey) => void; // a game-win notice's Play button
+  onEmote: () => void; // tapping an emote in chat opens the emote picker
   unseenMentions: ChatMessage[];
   onMentionsSeen: (ids: string[]) => void;
   roles: Roles;
 }) {
-  const names = useMemo(() => new Map(participants.map((p) => [p.userId, p.displayName ?? ''])), [participants]);
+  // Everyone seen in a room stays known, so an @mention stays tappable (and opens their card) after they leave or go
+  // offline. A copy per change, so the bubbles re-render when a new name arrives.
+  const names = useMemo(() => {
+    for (const p of participants) if (p.displayName) knownNames.set(p.userId, p.displayName);
+    for (const m of messages) if (m.sender?.displayName) knownNames.set(m.sender.userId, m.sender.displayName);
+    return new Map(knownNames);
+  }, [participants, messages]);
   const list = useRef<FlatList<ChatMessage>>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -77,7 +89,7 @@ export function ChatList({ messages, participants, meId, onEndReached, onUserPre
         contentContainerStyle={{ paddingHorizontal: space(3), paddingVertical: space(2), gap: space(2) }}
         renderItem={({ item }) => (
           <View style={item.messageId === flash ? st.flash : undefined}>
-            <Bubble m={item} meId={meId} names={names} onUserPress={onUserPress} onOpenGame={onOpenGame} roles={roles} />
+            <Bubble m={item} meId={meId} names={names} onUserPress={onUserPress} onOpenGame={onOpenGame} onEmote={onEmote} roles={roles} />
           </View>
         )}
       />
@@ -180,12 +192,13 @@ function SystemPill({ m, onUserPress }: { m: ChatMessage; onUserPress: (userId: 
   );
 }
 
-function Bubble({ m, meId, names, onUserPress, onOpenGame, roles }: {
+function Bubble({ m, meId, names, onUserPress, onOpenGame, onEmote, roles }: {
   m: ChatMessage;
   meId: string;
   names: Map<string, string>;
   onUserPress: (userId: string) => void;
   onOpenGame: (g: GameKey) => void;
+  onEmote: () => void;
   roles: Roles;
 }) {
   const catalog = useCatalog();
@@ -202,12 +215,14 @@ function Bubble({ m, meId, names, onUserPress, onOpenGame, roles }: {
   if (m.type === 'SYSTEM') return <SystemPill m={m} onUserPress={onUserPress} />;
 
   // Verified mentions only: handle -> userId, so a tapped @name opens that person's card.
-  const handles = new Map(m.mentions.map((id) => [names.get(id), id] as const).filter(([h]) => !!h));
+  // The message carries each mentioned person's name (so it works after they've left); older ones fall back to who we've seen.
+  const handles = new Map(m.mentions.map((id) => [m.mentionNames?.[id] ?? names.get(id), id] as const).filter(([h]) => !!h));
   const mentionsMe = m.mentions.includes(meId);
   const sender = m.sender!;
   const bubble = sender.bubbleId ? catalog.bubbles[sender.bubbleId] : undefined;
   const frame = sender.frameId ? catalog.frames[sender.frameId]?.svg : undefined;
   const big = isEmojiOnly(m.body);
+  const emote = EMOTES.find((e) => e.key === m.payload?.emote); // an animated emote: tap to pick one to send back
   return (
     <BubbleFrame bubble={bubble} mentionsMe={mentionsMe}>
       {/* Identity line: framed avatar, marks and badges, then the name. */}
@@ -226,7 +241,12 @@ function Bubble({ m, meId, names, onUserPress, onOpenGame, roles }: {
           {sender.displayName}
         </Text>
       </View>
-      <Text style={[st.msg, big && st.bigEmoji, bubble?.style && { color: bubble.style.text }]}>
+      <Text
+        style={[st.msg, big && st.bigEmoji, bubble?.style && { color: bubble.style.text }]}
+        onPress={emote ? onEmote : undefined}
+        accessibilityRole={emote ? 'button' : undefined}
+        accessibilityHint={emote ? 'Opens emotes' : undefined}
+        suppressHighlighting={false}>
         {(handles.size ? m.body.split(mentionSplitter([...handles.keys()] as string[])) : [m.body]).map((part, i) =>
           handles.has(part.slice(1)) ? (
             <Text
@@ -329,6 +349,7 @@ export function Composer({ participants, meId, onSend, onGift, onMore, onGames, 
   tag: { userId: string; handle: string; n: number } | null; // from a profile card: insert @handle
   minimal?: boolean; // live host: only chat and mic (no messages, more, games or gift)
 }) {
+  const unreadDms = useUnreadDms();
   const [text, setText] = useState('');
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [typing, setTyping] = useState(false);
@@ -364,9 +385,17 @@ export function Composer({ participants, meId, onSend, onGift, onMore, onGames, 
     if (!body) return;
     setSending(true);
     try {
-      await onSend(body, mentions.filter((m) => body.includes(`@${m.handle}`)));
+      // Picked tags, plus anyone whose @name was typed out by hand (people here now, or seen earlier), so every tag
+      // in the message is tappable for everyone.
+      const typed = [...participants.map((p) => [p.userId, p.displayName ?? ''] as const), ...knownNames.entries()]
+        .filter(([id, name]) => name && id !== meId && body.includes(`@${name}`))
+        .map(([userId, handle]) => ({ userId, handle }));
+      const all = [...mentions, ...typed].filter((m, i, list) => body.includes(`@${m.handle}`) && list.findIndex((x) => x.userId === m.userId) === i);
+      await onSend(body, all);
       setText('');
       setMentions([]);
+      setTyping(false); // back to the bottom bar
+      Keyboard.dismiss();
     } catch (e) {
       toast(errorText(e));
     } finally {
@@ -403,6 +432,19 @@ export function Composer({ participants, meId, onSend, onGift, onMore, onGames, 
               editable={!sending}
               accessibilityLabel="Message"
             />
+            {/* Emotes live in the text field's right corner: the field closes back to the bottom bar and the picker opens. */}
+            <Pressable
+              onPress={() => {
+                setTyping(false);
+                Keyboard.dismiss();
+                onEmotes();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Emotes"
+              hitSlop={8}
+              style={st.send}>
+              <Smile size={20} color={colors.gold} strokeWidth={2.3} />
+            </Pressable>
             {text.trim() ? (
               <Pressable onPress={send} accessibilityRole="button" accessibilityLabel="Send" hitSlop={8} style={st.send}>
                 <Send size={18} color={colors.primary} strokeWidth={2.4} />
@@ -418,13 +460,17 @@ export function Composer({ participants, meId, onSend, onGift, onMore, onGames, 
           <IconButton label="Chat" onPress={() => setTyping(true)} size={44}>
             <MessageSquareText size={20} color={colors.text} strokeWidth={2.3} />
           </IconButton>
-          <IconButton label="Emotes" onPress={onEmotes} size={44}>
-            <Smile size={20} color={colors.gold} strokeWidth={2.3} />
-          </IconButton>
           {minimal ? null : (
-            <IconButton label="Messages" onPress={onMessages} size={44}>
-              <Mail size={20} color={colors.text} strokeWidth={2.3} />
-            </IconButton>
+            <View>
+              <IconButton label={unreadDms ? `Messages, ${unreadDms} unread` : 'Messages'} onPress={onMessages} size={44}>
+                <Mail size={20} color={colors.text} strokeWidth={2.3} />
+              </IconButton>
+              {unreadDms ? (
+                <View style={st.unread} pointerEvents="none">
+                  <Text style={st.unreadText}>{unreadDms > 99 ? '99+' : unreadDms}</Text>
+                </View>
+              ) : null}
+            </View>
           )}
           {micMuted !== null ? (
             <IconButton label={micMuted ? 'Unmute' : 'Mute'} onPress={onToggleMic} size={44} style={micMuted ? st.micOff : st.micOn}>
@@ -454,7 +500,9 @@ export function Composer({ participants, meId, onSend, onGift, onMore, onGames, 
 
 const st = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
-  sender: { flexShrink: 1, fontSize: 13, fontWeight: '800' },
+  // A fixed one-line box, clipped: decorated names (stacked accent marks, symbols from other fonts) can measure shorter
+  // than they draw on Android, which used to push the name down over the message.
+  sender: { flexShrink: 1, maxWidth: '100%', fontSize: 13, fontWeight: '800', lineHeight: 18, height: 18, includeFontPadding: false, overflow: 'hidden' },
   role: { fontSize: 9, fontWeight: '900', letterSpacing: 0.6, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, overflow: 'hidden' },
   // Message card: identity line on top, text below; fits its content up to nearly full width.
   card: {
@@ -474,6 +522,8 @@ const st = StyleSheet.create({
   ornament: { position: 'absolute', bottom: -4, right: -6 },
   msg: { color: colors.text, fontSize: 15, lineHeight: 21 },
   bigEmoji: { fontSize: 38, lineHeight: 46 },
+  unread: { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.bg },
+  unreadText: { color: '#fff', fontSize: 10, fontWeight: '900' },
   tag: { color: '#FF8AB8', fontWeight: '800' },
   svipEntry: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,227,138,0.6)' },
   svipEntryText: { color: '#fff', fontSize: 13, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 3 },

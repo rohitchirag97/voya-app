@@ -1,5 +1,6 @@
 package com.partylive
 
+import android.view.WindowManager
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -19,4 +20,16 @@ class MainActivity : ReactActivity() {
    */
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+
+  // The screen never sleeps while the app is open on screen (rooms, live, chat, games). Leaving the app (home, another
+  // app, screen off by the power button) brings back the phone's normal sleep timeout.
+  override fun onResume() {
+    super.onResume()
+    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+  }
+
+  override fun onPause() {
+    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    super.onPause()
+  }
 }

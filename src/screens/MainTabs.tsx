@@ -8,6 +8,7 @@ import { useNav, type Tab } from '../nav';
 import { colors, gradients, space } from '../theme';
 import { HomeScreen } from './HomeScreen';
 import { MessagesScreen } from './MessagesScreen';
+import { useUnreadDms } from '../services/AppEvents';
 import { PostsScreen } from './PostsScreen';
 import { UserProfileScreen } from './UserProfileScreen';
 
@@ -34,6 +35,7 @@ const barPath = (w: number) => {
 
 // The tab lives in the route, so coming back from a pushed screen lands on the same tab.
 export function MainTabs({ tab }: { tab: Tab }) {
+  const unreadDms = useUnreadDms();
   const nav = useNav();
   const i = useSafeAreaInsets();
   const [w, setW] = useState(0);
@@ -85,19 +87,27 @@ export function MainTabs({ tab }: { tab: Tab }) {
         <View style={st.row}>
           {TABS.map(({ id, label, Icon }) => {
             const on = id === tab;
+            const badge = id === 'messages' && !on ? unreadDms : 0;
             return (
               <Pressable
                 key={id}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={label}
+                accessibilityLabel={badge ? `${label}, ${badge} unread` : label}
                 onPress={() => !on && nav.replace({ name: 'home', tab: id })}
                 style={st.item}>
                 {on ? (
                   <Text style={st.activeLabel}>{label}</Text>
                 ) : (
                   <>
-                    <Icon size={22} color={colors.muted} strokeWidth={2} />
+                    <View>
+                      <Icon size={22} color={colors.muted} strokeWidth={2} />
+                      {badge ? (
+                        <View style={st.badge}>
+                          <Text style={st.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+                        </View>
+                      ) : null}
+                    </View>
                     <Text style={st.label}>{label}</Text>
                   </>
                 )}
@@ -111,6 +121,8 @@ export function MainTabs({ tab }: { tab: Tab }) {
 }
 
 const st = StyleSheet.create({
+  badge: { position: 'absolute', top: -6, right: -10, minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FF3B5C', borderWidth: 1.5, borderColor: '#fff' },
+  badgeText: { color: '#fff', fontSize: 9.5, fontWeight: '900' },
   dock: { position: 'absolute', left: space(4), right: space(4), height: BAR_H },
   shadow: {
     position: 'absolute',

@@ -1,6 +1,7 @@
-import { ChevronLeft, ChevronRight, Info, LogOut, Mail, PenLine, Smartphone, Store, Wallet } from 'lucide-react-native';
+import { Bell, BellRing, ChevronLeft, ChevronRight, DoorOpen, Info, LogOut, Mail, PenLine, Smartphone, Store, Wallet } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { loadNotifySettings, setNotifySetting, type NotifySettings } from '../services/AppEvents';
 import { version } from '../../package.json';
 import { api, auth, errorText, type SignInMethods } from '../api';
 import { confirmDialog } from '../components/Dialog';
@@ -9,6 +10,14 @@ import { useNav } from '../nav';
 import { colors, radius, space } from '../theme';
 
 export function SettingsScreen() {
+  const [notifs, setNotifs] = useState<NotifySettings | null>(null);
+  useEffect(() => {
+    loadNotifySettings().then(setNotifs, () => {});
+  }, []);
+  const toggle = (key: keyof NotifySettings, on: boolean) => {
+    setNotifySetting(key, on);
+    setNotifs((n) => (n ? { ...n, [key]: on } : n));
+  };
   const nav = useNav();
   const [methods, setMethods] = useState<SignInMethods | null>(null);
   const [linking, setLinking] = useState(false);
@@ -85,6 +94,26 @@ export function SettingsScreen() {
           </>
         )}
 
+        {/* What the app may alert you about; the phone's own settings can still turn notifications off entirely. */}
+        <Text style={s.label}>Notifications</Text>
+        <View style={st.group}>
+          <SwitchRow
+            Icon={BellRing}
+            label="New messages"
+            hint="A notification when someone messages you while the app is in the background"
+            value={notifs?.messages ?? true}
+            onChange={(v) => toggle('messages', v)}
+          />
+          <SwitchRow
+            Icon={DoorOpen}
+            label="Room invites"
+            hint="A pop-up when a friend invites you to their room"
+            value={notifs?.invites ?? true}
+            onChange={(v) => toggle('invites', v)}
+          />
+          {Platform.OS === 'android' ? <Row Icon={Bell} label="Phone notification settings" onPress={() => Linking.openSettings()} last /> : null}
+        </View>
+
         <Text style={s.label}>About</Text>
         <View style={st.group}>
           <Row Icon={Info} label="Version" value={version} last />
@@ -97,6 +126,27 @@ export function SettingsScreen() {
         </Pressable>
       </ScrollView>
     </Screen>
+  );
+}
+
+function SwitchRow({ Icon, label, hint, value, onChange }: { Icon: typeof Info; label: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <View style={[st.row, st.rowLine]}>
+      <View style={st.icon}>
+        <Icon size={18} color={colors.primary} strokeWidth={2.4} />
+      </View>
+      <View style={st.grow}>
+        <Text style={st.rowLabel}>{label}</Text>
+        <Text style={st.hint}>{hint}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        accessibilityLabel={label}
+        trackColor={{ true: colors.primary, false: colors.border }}
+        thumbColor="#fff"
+      />
+    </View>
   );
 }
 
@@ -126,6 +176,8 @@ const st = StyleSheet.create({
   rowLine: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   icon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryDim },
   rowLabel: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '700' },
+  grow: { flex: 1 },
+  hint: { color: colors.muted, fontSize: 12, marginTop: 2 },
   value: { color: colors.muted, fontSize: 14, fontWeight: '600' },
   logout: {
     flexDirection: 'row',

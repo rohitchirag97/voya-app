@@ -1,4 +1,4 @@
-import { ChevronDown, EyeOff, Globe, ImagePlus, Lock, LogOut, ShieldCheck, UserPlus, X } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, Crown, Eraser, EyeOff, Globe, ImagePlus, Lock, LogOut, ShieldCheck, UserPlus, X } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { errorText, roomCoverUri, type RoomPrivacy, type RoomSnapshot } from '../api';
 import { Gradient, ROOM_BACKGROUNDS } from '../components/Gradient';
 import { Avatar, toast } from '../components/ui';
+import { LevelBadge } from '../components/Level';
+import { SvipBadge } from '../components/Svip';
 import { roomColors as colors, radius, space, tintPairFor } from '../theme';
 import type { RoomState } from './useRoom';
 import { useNav } from '../nav';
@@ -41,7 +43,32 @@ export function RoomDrawer({ visible, onClose, room, snap, meId, onMinimize, onL
 
   const isOwner = snap.hostUserId === meId;
   const cover = roomCoverUri(snap.coverUrl);
+  const nav = useNav();
+  const bgPhoto = roomCoverUri(snap.backgroundUrl);
+  // A portrait photo for the backdrop, sized for phone screens. Choosing a preset afterwards replaces it.
+  async function pickBackground() {
+    const r = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, maxWidth: 1080, maxHeight: 1920, quality: 0.8 });
+    if (r.errorMessage) return toast(r.errorMessage);
+    const a = r.assets?.[0];
+    if (a?.uri) run(() => room.uploadBackground({ uri: a.uri!, type: a.type ?? 'image/jpeg', name: a.fileName ?? 'background.jpg' }), 'Background updated');
+  }
   const run = (fn: () => Promise<unknown>, ok?: string) => fn().then(() => ok && toast(ok)).catch((e) => toast(errorText(e)));
+
+  // Everyone can clear their own view; the owner and admins can also clear it for everyone in the room.
+  // Everyone can clear their own view; the owner and admins can also clear it for everyone in the room. The choice
+  // opens right here in the menu (a dialog would have to draw over this native modal).
+  const [clearing, setClearing] = useState(false);
+  useEffect(() => {
+    if (!visible) setClearing(false);
+  }, [visible]);
+  const clearFor = (who: 'me' | 'all') => {
+    setClearing(false);
+    onClose();
+    if (who === 'me') {
+      room.clearChatForMe();
+      toast('Chat cleared on your phone');
+    } else run(room.clearChatForAll, 'Chat cleared for everyone');
+  };
 
   return (
     <Modal visible={shown} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
@@ -68,6 +95,38 @@ export function RoomDrawer({ visible, onClose, room, snap, meId, onMinimize, onL
             </Pressable>
           </View>
 
+          {/* Whose room this is (shown even when the owner isn't here). Tap for their profile. */}
+          {snap.owner ? (
+            <Pressable
+              onPress={() => {
+                onClose();
+                nav.push({ name: 'user', userId: snap.owner!.userId }); // the room keeps running as a bubble
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Room owner ${snap.owner.displayName}. Open their profile`}
+              style={st.owner}>
+              <Avatar id={snap.owner.userId} name={snap.owner.displayName} uri={snap.owner.avatarUrl} size={44} />
+              <View style={st.grow}>
+                <View style={st.ownerTop}>
+                  <Crown size={13} color={colors.gold} fill={colors.gold} />
+                  <Text style={st.ownerTag}>ROOM OWNER</Text>
+                </View>
+                <View style={st.ownerNameRow}>
+                  <Text style={st.ownerName} numberOfLines={1}>
+                    {snap.owner.displayName}
+                  </Text>
+                  <SvipBadge tier={snap.owner.svip ?? 0} />
+                  {snap.owner.level ? <LevelBadge level={snap.owner.level} /> : null}
+                </View>
+                <Text style={st.ownerSub} numberOfLines={1}>
+                  ID {snap.owner.specialId ?? snap.owner.publicId}
+                  {snap.createdAt ? ` · Room since ${new Date(snap.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.muted} />
+            </Pressable>
+          ) : null}
+
           {/* Minimize / leave (moved here from the header) */}
           <View style={st.actions}>
             <Pressable onPress={onMinimize} accessibilityRole="button" style={st.action}>
@@ -79,6 +138,30 @@ export function RoomDrawer({ visible, onClose, room, snap, meId, onMinimize, onL
               <Text style={[st.actionText, st.leaveText]}>Leave room</Text>
             </Pressable>
           </View>
+          <View style={st.actions}>
+            <Pressable onPress={() => setClearing((c) => !c)} accessibilityRole="button" accessibilityState={{ expanded: clearing }} style={[st.action, clearing && st.actionOn]}>
+              <Eraser size={17} color={colors.text} />
+              <Text style={st.actionText}>Clear chat</Text>
+            </Pressable>
+          </View>
+          {clearing ? (
+            <View style={st.clearBox}>
+              <Text style={st.clearNote}>
+                {room.isMod ? 'Clear it just on your phone, or for everyone in the room.' : 'The messages so far disappear from your phone. Others still see them.'}
+              </Text>
+              <Pressable onPress={() => clearFor('me')} accessibilityRole="button" style={st.action}>
+                <Text style={st.actionText}>Clear for me</Text>
+              </Pressable>
+              {room.isMod ? (
+                <Pressable onPress={() => clearFor('all')} accessibilityRole="button" style={[st.action, st.leave]}>
+                  <Text style={[st.actionText, st.leaveText]}>Clear for everyone</Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={() => setClearing(false)} accessibilityRole="button" style={st.cancel}>
+                <Text style={st.cancelText}>Cancel</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {room.isMod ? (
             <>
@@ -89,8 +172,19 @@ export function RoomDrawer({ visible, onClose, room, snap, meId, onMinimize, onL
               <View style={st.card}>
                 <Text style={st.label}>Background</Text>
                 <View style={st.swatches}>
+                  <Pressable
+                    onPress={pickBackground}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: !!bgPhoto }}
+                    accessibilityLabel={bgPhoto ? 'Photo background. Change photo' : 'Use your own photo as the background'}
+                    style={st.swatchWrap}>
+                    <View style={[st.swatch, st.photoSwatch, !!bgPhoto && st.swatchOn]}>
+                      {bgPhoto ? <Image source={{ uri: bgPhoto }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <ImagePlus size={20} color={colors.muted} />}
+                    </View>
+                    <Text style={[st.swatchName, !!bgPhoto && { color: colors.text }]}>{bgPhoto ? 'Change photo' : 'Your photo'}</Text>
+                  </Pressable>
                   {ROOM_BACKGROUNDS.map((b) => {
-                    const on = (snap.background ?? 'night') === b.key;
+                    const on = !bgPhoto && (snap.background ?? 'night') === b.key; // a photo, when set, wins
                     return (
                       <Pressable
                         key={b.key}
@@ -320,6 +414,11 @@ const st = StyleSheet.create({
   sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
   close: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceHigh },
   actions: { flexDirection: 'row', gap: space(2) },
+  actionOn: { borderColor: colors.primary },
+  clearBox: { gap: space(2), padding: space(3), borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  clearNote: { color: colors.muted, fontSize: 13 },
+  cancel: { alignSelf: 'center', paddingVertical: space(1), paddingHorizontal: space(3) },
+  cancelText: { color: colors.muted, fontWeight: '700' },
   action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: radius.md, backgroundColor: colors.surfaceHigh, borderWidth: 1, borderColor: colors.border },
   leave: { backgroundColor: 'rgba(255,77,94,0.12)', borderColor: 'rgba(255,77,94,0.3)' },
   actionText: { color: colors.text, fontWeight: '700' },
@@ -348,6 +447,13 @@ const st = StyleSheet.create({
   swatchWrap: { alignItems: 'center', gap: 4, width: '30%' },
   swatch: { width: '100%', aspectRatio: 1.4, borderRadius: radius.sm, borderWidth: 2, borderColor: 'transparent' },
   swatchOn: { borderColor: '#fff' },
+  photoSwatch: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.3)' },
+  owner: { flexDirection: 'row', alignItems: 'center', gap: space(3), padding: space(3), borderRadius: radius.md, backgroundColor: 'rgba(255,201,77,0.08)', borderWidth: 1, borderColor: 'rgba(255,201,77,0.3)' },
+  ownerTop: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ownerTag: { color: colors.gold, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  ownerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
+  ownerName: { flexShrink: 1, color: colors.text, fontSize: 16, fontWeight: '800' },
+  ownerSub: { color: colors.muted, fontSize: 12, marginTop: 1 },
   swatchName: { color: colors.muted, fontSize: 11.5, fontWeight: '700' },
   switchRow: { flexDirection: 'row', alignItems: 'center' },
   switchLabel: { color: colors.text, fontWeight: '700' },

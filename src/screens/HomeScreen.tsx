@@ -28,6 +28,7 @@ import { Avatar, IconButton, Screen, toast } from '../components/ui';
 import { tickColor } from '../components/Official';
 import { useNav } from '../nav';
 import { FriendsTab } from './FriendsTab';
+import { FriendsOnlinePill } from './FriendsOnlineScreen';
 import { LiveTab } from './LiveTab';
 import { colors, gradients, radius, space, tintPairFor } from '../theme';
 
@@ -140,6 +141,8 @@ export function HomeScreen() {
         <LiveTab width={width} />
         <RoomsTab width={width} />
       </Animated.ScrollView>
+      {/* People you follow who are in rooms right now: tap for the list. */}
+      <FriendsOnlinePill />
     </Screen>
   );
 }

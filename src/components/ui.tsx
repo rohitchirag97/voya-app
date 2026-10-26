@@ -34,7 +34,8 @@ export const toast = (msg: string) => (Platform.OS === 'android' ? ToastAndroid.
 
 // top/bottom = false: the screen draws under that system bar itself (e.g. a full-bleed cover image).
 // backdropTheme: the room's chosen background preset (dark/room screens only).
-export function Screen({ children, style, backdrop, backdropTheme, top = true, bottom = true }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; backdrop?: boolean; backdropTheme?: string | null; top?: boolean; bottom?: boolean }) {
+// backdropImage: a room's own photo backdrop (full URL), drawn over the preset with a shade so text stays readable.
+export function Screen({ children, style, backdrop, backdropTheme, backdropImage, top = true, bottom = true }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; backdrop?: boolean; backdropTheme?: string | null; backdropImage?: string | null; top?: boolean; bottom?: boolean }) {
   const i = useSafeAreaInsets();
   const s = useStyles();
   const dark = useContext(DarkUi);
@@ -43,6 +44,12 @@ export function Screen({ children, style, backdrop, backdropTheme, top = true, b
   return (
     <View style={[s.screen, { paddingTop: top ? i.top : 0, paddingBottom: bottom ? i.bottom : 0 }]}>
       {backdrop ? dark ? <RoomBackdrop theme={backdropTheme} /> : <LightBackdrop /> : null}
+      {backdrop && dark && backdropImage ? (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Image source={{ uri: backdropImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <View style={[StyleSheet.absoluteFill, s.photoShade]} />
+        </View>
+      ) : null}
       <KeyboardAvoidingView behavior="padding" style={[{ flex: 1 }, style]}>
         {children}
       </KeyboardAvoidingView>
@@ -209,6 +216,7 @@ export function SheetAction({ label, onPress, danger, icon }: { label: string; o
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  photoShade: { backgroundColor: 'rgba(8,5,20,0.42)' },
   h1: { color: colors.text, fontSize: 28, fontWeight: '800' },
   h2: { color: colors.text, fontSize: 20, fontWeight: '700' },
   body: { color: colors.text, fontSize: 15 },

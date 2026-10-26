@@ -1,70 +1,71 @@
-import { Handshake, ImagePlus, Send, X } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import { DoorOpen, Flag, Handshake, ImagePlus, Send, X } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { api, errorText, imageUri, newId, sendDmPhoto, type Conversation, type DirectMessage, type StaffRole } from '../api';
+import { api, errorText, getCards, getPresence, imageUri, newId, presenceText, sendDmPhoto, type Conversation, type CpProposal, type DirectMessage, type Presence, type StaffRole } from '../api';
+import { showDialog } from '../components/Dialog';
+import { setOpenChat } from '../services/AppEvents';
+import { getChat, markChatRead, saveSent, subscribeDms, updateCpCards, type Peer } from '../services/DmStore';
 import { pickPhoto } from './ProfileParts';
 import { CP_LOOK, cpName, CpRequestCard, daysText } from '../components/Cp';
 import { OfficialMark } from '../components/Official';
 import { Avatar, Screen, s, toast } from '../components/ui';
 import { useNav } from '../nav';
-import { connectSocket } from '../services/RoomSocket';
 import { colors, radius, space } from '../theme';
 
-const newestFirst = (list: DirectMessage[]) => {
-  const seen = new Set<number>();
-  return list.filter((m) => !seen.has(m.id) && seen.add(m.id)).sort((a, b) => b.id - a.id);
-};
+const REPORT_REASONS = [
+  { value: 'harassment', label: 'Harassment or bullying' },
+  { value: 'spam', label: 'Spam or scam' },
+  { value: 'inappropriate', label: 'Nudity or sexual content' },
+  { value: 'other', label: 'Something else' },
+];
 
-// 1:1 chat with a friend. If a room is active it keeps running as the bubble.
+// 1:1 chat. Messages come from this phone (chats aren't kept on the server); the app-wide listener saves new ones as
+// they arrive, and this screen follows the saved copy. If a room is active it keeps running as the bubble.
 export function DmScreen({ userId, displayName, staffRole }: { userId: string; displayName: string | null; staffRole?: StaffRole | null }) {
   const nav = useNav();
   const me = nav.me!;
-  const [messages, setMessages] = useState<DirectMessage[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [messages, setMessages] = useState<DirectMessage[]>(() => [...getChat(userId)].reverse()); // newest first
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [viewing, setViewing] = useState<string | null>(null); // full-screen photo
   const [cp, setCp] = useState<Conversation['cp']>(null); // your CP with them, shown under the header
-
-  const add = (list: DirectMessage[]) => setMessages((prev) => newestFirst([...list, ...(prev ?? [])]));
-
-  const load = useCallback(
-    async (older = false) => {
-      if (older && !cursor) return;
-      try {
-        const r = await api<{ messages: DirectMessage[]; nextCursor: string | null; cp: Conversation['cp'] }>(
-          'GET',
-          `/dm/${userId}?limit=30${older && cursor ? `&cursor=${cursor}` : ''}`,
-        );
-        add(r.messages);
-        setCursor(r.nextCursor);
-        if (!older) setCp(r.cp ?? null);
-      } catch (e) {
-        toast(errorText(e));
-        setMessages((m) => m ?? []);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [userId, cursor],
-  );
+  const [peer, setPeer] = useState<Peer>({ userId, displayName, avatarUrl: null });
+  const [presence, setPresence] = useState<Presence | undefined>();
+  useEffect(() => {
+    const load = () => getPresence([userId]).then((r) => setPresence(r.presence[0]), () => {});
+    load();
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, [userId]);
 
   useEffect(() => {
-    load();
-    // Live delivery while this screen is open.
-    const sock = connectSocket();
-    sock.on('dm:new', (m: DirectMessage) => {
-      const ours = (m.senderId === userId && m.recipientId === me.userId) || (m.senderId === me.userId && m.recipientId === userId);
-      if (ours) add([m]);
+    setOpenChat(userId); // new messages here are read as they arrive
+    const refresh = () => setMessages([...getChat(userId)].reverse());
+    refresh();
+    markChatRead(userId);
+    const off = subscribeDms(() => {
+      refresh();
+      markChatRead(userId);
     });
-    // A CP request answered, cancelled or expired: refresh its card.
-    sock.on('cp:update', (e: { proposalId: string; status: NonNullable<DirectMessage['cp']>['status'] }) =>
-      setMessages((prev) => prev && prev.map((m) => (m.cp?.id === e.proposalId ? { ...m, cp: { ...m.cp, status: e.status } } : m))),
-    );
-    sock.on('connect', () => load()); // catch up on anything missed while reconnecting
-    sock.connect();
+    // Their current picture/name for the header and inbox, and our CP (if any) for the strip under it.
+    getCards([userId, me.userId])
+      .then(({ profiles }) => {
+        const them = profiles.find((x) => x.userId === userId);
+        if (them) {
+          const info = { userId, displayName: them.displayName, avatarUrl: them.avatarUrl, staffRole: them.staffRole, svip: them.svip };
+          setPeer(info);
+          markChatRead(userId, info);
+        }
+        const r = profiles.find((x) => x.userId === me.userId)?.relationships.find((x) => x.user.userId === userId);
+        setCp(r ? { type: r.type, label: r.label, since: r.since, level: r.level } : null);
+      })
+      .catch(() => {});
+    // CP request cards saved here may have been answered since: refresh their status.
+    const cardIds = getChat(userId).flatMap((m) => (m.cp ? [m.cp.id] : []));
+    if (cardIds.length) api<{ cards: CpProposal[] }>('POST', '/cp/cards', { ids: cardIds.slice(-100) }).then((r) => updateCpCards(userId, r.cards), () => {});
     return () => {
-      sock.removeAllListeners();
-      sock.disconnect();
+      setOpenChat(null);
+      off();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
@@ -74,7 +75,7 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
     if (!body) return;
     setSending(true);
     try {
-      add([await api<DirectMessage>('POST', `/dm/${userId}`, { body, clientMessageId: newId() })]);
+      saveSent(await api<DirectMessage>('POST', `/dm/${userId}`, { body, clientMessageId: newId() }), peer);
       setText('');
     } catch (e) {
       toast(errorText(e));
@@ -89,11 +90,33 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
     if (!file) return;
     setSending(true);
     try {
-      add([await sendDmPhoto(userId, file, newId())]);
+      saveSent(await sendDmPhoto(userId, file, newId()), peer);
     } catch (e) {
       toast(errorText(e));
     } finally {
       setSending(false);
+    }
+  }
+
+  // Report them. The server doesn't keep chats, so the last messages from this phone go with the report (only
+  // reported messages are kept, for moderators).
+  async function report() {
+    const reason = await showDialog({
+      title: `Report ${peer.displayName ?? 'this person'}?`,
+      message: 'Your recent messages with them are sent with the report so our team can review it.',
+      Icon: Flag,
+      tone: 'danger',
+      actions: [...REPORT_REASONS.map((r) => ({ label: r.label, value: r.value, kind: 'primary' as const })), { label: 'Cancel', value: 'cancel', kind: 'cancel' as const }],
+    });
+    if (!reason || reason === 'cancel') return;
+    const evidence = getChat(userId)
+      .slice(-30)
+      .map((m) => ({ senderId: m.senderId, body: m.body, imageUrl: m.imageUrl ?? null, createdAt: m.createdAt }));
+    try {
+      await api('POST', '/reports', { targetType: 'USER', targetId: userId, reason, evidence });
+      toast('Thanks, our team will review it');
+    } catch (e) {
+      toast(errorText(e));
     }
   }
 
@@ -104,17 +127,20 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
           <Text style={st.back}>‹</Text>
         </Pressable>
         <Pressable onPress={() => nav.push({ name: 'user', userId })} style={st.who} accessibilityRole="button" accessibilityLabel={`${displayName}'s profile`}>
-          <Avatar id={userId} name={displayName} size={36} />
+          <Avatar id={userId} name={peer.displayName ?? displayName} uri={peer.avatarUrl} size={36} />
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Text style={[s.body, { fontWeight: '700' }]}>{displayName}</Text>
               <OfficialMark role={staffRole} still />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Handshake size={12} color={colors.muted} />
-              <Text style={[s.muted, { fontSize: 12 }]}>Friends</Text>
+              {presence?.online ? <View style={st.onDot} /> : <Handshake size={12} color={colors.muted} />}
+              <Text style={[s.muted, { fontSize: 12 }, presence?.online && st.onText]}>{presenceText(presence) ?? 'Friends'}</Text>
             </View>
           </View>
+        </Pressable>
+        <Pressable onPress={report} accessibilityRole="button" accessibilityLabel={`Report ${peer.displayName ?? 'this person'}`} hitSlop={10} style={st.report}>
+          <Flag size={18} color={colors.muted} />
         </Pressable>
       </View>
 
@@ -139,21 +165,32 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
         </Pressable>
       ) : null}
 
-      {messages === null ? (
-        <ActivityIndicator color={colors.primary} style={{ flex: 1 }} />
-      ) : (
+      {
         <FlatList
           inverted
           style={{ flex: 1 }}
           data={messages}
           keyExtractor={(m) => String(m.id)}
-          onEndReached={() => load(true)}
           contentContainerStyle={st.list}
           ListEmptyComponent={<Text style={[s.muted, st.empty]}>Say hi to {displayName}</Text>}
           renderItem={({ item }) => {
             const mine = item.senderId === me.userId;
             if (item.cp) {
-              return <CpRequestCard cp={item.cp} meId={me.userId} onChange={(cp) => setMessages((prev) => prev && prev.map((m) => (m.id === item.id ? { ...m, cp } : m)))} />;
+              return <CpRequestCard cp={item.cp} meId={me.userId} onChange={(card) => updateCpCards(userId, [card])} />;
+            }
+            if (item.roomId) {
+              const roomId = item.roomId;
+              return (
+                <View style={[st.bubble, mine ? st.mine : st.theirs, st.inviteCard]}>
+                  <Text style={[st.text, !mine && { color: colors.text }]}>{item.body}</Text>
+                  {mine ? null : (
+                    <Pressable onPress={() => nav.openRoom(roomId)} accessibilityRole="button" accessibilityLabel="Join the room" style={st.joinBtn}>
+                      <DoorOpen size={15} color="#fff" strokeWidth={2.6} />
+                      <Text style={st.joinText}>Join room</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
             }
             if (item.imageUrl) {
               const uri = imageUri(item.imageUrl);
@@ -172,7 +209,7 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
             );
           }}
         />
-      )}
+      }
 
       <View style={st.bar}>
         <Pressable onPress={sendPhoto} disabled={sending} accessibilityRole="button" accessibilityLabel="Send a photo" hitSlop={6} style={[st.attach, sending && { opacity: 0.5 }]}>
@@ -211,6 +248,9 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
 
 const st = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', gap: space(3), paddingHorizontal: space(4), paddingVertical: space(3) },
+  onDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
+  onText: { color: '#22C55E', fontWeight: '700' },
+  report: { marginLeft: 'auto', padding: space(1) },
   back: { color: colors.text, fontSize: 34, lineHeight: 36, width: 24 },
   who: { flexDirection: 'row', alignItems: 'center', gap: space(3) },
   list: { padding: space(4), gap: space(2) },
@@ -241,6 +281,9 @@ const st = StyleSheet.create({
   cpTrack: { height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
   cpFill: { height: '100%', borderRadius: 3 },
   cpDays: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  inviteCard: { gap: space(2) },
+  joinBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, borderRadius: radius.pill, backgroundColor: colors.primary },
+  joinText: { color: '#fff', fontWeight: '900', fontSize: 14 },
   attach: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
   photoWrap: { borderRadius: radius.md, overflow: 'hidden', padding: 3 },
   photo: { width: 220, height: 260, borderRadius: radius.md - 3 },

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, errorText, getProfileOptions, uploadAvatar, type Me, type ProfileOptions } from '../api';
-import { pickPhoto } from './ProfileParts';
+import { pickAvatar } from './ProfileParts';
 import { NAME_MAX, NAME_MIN, nameError as nameRule, normalizeName } from '../displayName';
 import { Avatar, Button, Field, Screen, s, toast } from '../components/ui';
 import { useNav } from '../nav';
@@ -88,7 +88,7 @@ export function ProfileSetupScreen() {
         <Text style={s.muted}>This is how people see and @mention you in rooms.</Text>
         <Pressable
           onPress={async () => {
-            const file = await pickPhoto(800);
+            const file = await pickAvatar();
             if (!file) return;
             try {
               nav.setMe(await uploadAvatar(file));

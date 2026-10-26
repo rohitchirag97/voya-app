@@ -51,6 +51,9 @@ export type RoomSnapshot = {
   charisma: Charisma | null; // null = counter off
   pk: Pk | null; // running PK 1v1, null = none
   background: string; // backdrop preset key (see ROOM_BACKGROUNDS)
+  backgroundUrl?: string | null; // custom photo backdrop (server path); wins over `background`
+  owner?: (UserSummary & { publicId: number; specialId: string | null }) | null; // whose room this is (even when away)
+  createdAt?: string;
   showEntry: boolean; // "X joined" notices in chat
   giftAnimations: boolean; // full-screen gift effects + gift banners
   privacy: RoomPrivacy;
@@ -95,6 +98,7 @@ export type ChatMessage = {
   type: 'USER' | 'SYSTEM' | 'FOLLOW' | 'PRIVATE'; // FOLLOW/PRIVATE: local-only notes only this user sees
   body: string;
   mentions: string[];
+  mentionNames?: Record<string, string>; // userId -> name of each mentioned person (works after they leave)
   clientMessageId: string | null;
   payload?: { userId?: string; youFollowThem?: boolean; kind?: string; game?: 'jungle' | 'galaxy' | 'rocket'; amount?: number; emote?: import('./room/Emotes').EmoteKey; result?: string } | null; // system/follow items name the user they are about; game wins name the game; emotes carry the server-drawn result
   sender: UserSummary | null;
@@ -122,6 +126,8 @@ export type UserProfile = Me & {
   inRoom: { roomId: string; title: string; coverUrl: string | null; listeners: number; privacy: RoomPrivacy; kind: RoomKind } | null; // the live room they're in now
   svip: number;
   week?: { contribution: number; charisma: number; endsAt: string }; // gifts sent / received since Monday (India time)
+  online?: boolean; // app open right now
+  lastSeenAt?: string | null;
   relationships: Relationship[]; // active CPs, oldest first
 };
 
@@ -147,7 +153,7 @@ export const equipCosmetics = (change: { avatarFrameId?: string | null; cardDeco
 export const isFriend = (p: UserProfile) => p.isFollowing && p.followsMe; // mutual follow
 export const followLabel = (p: UserProfile) =>
   isFriend(p) ? 'Friends' : p.isFollowing ? 'Following' : p.followsMe ? 'Follow back' : 'Follow';
-export type DirectMessage = { id: number; senderId: string; recipientId: string; body: string; clientMessageId: string | null; createdAt: string; cp?: CpProposal | null; imageUrl?: string | null };
+export type DirectMessage = { id: number; senderId: string; recipientId: string; body: string; clientMessageId: string | null; createdAt: string; cp?: CpProposal | null; imageUrl?: string | null; senderName?: string | null; roomId?: string | null };
 export const getProfile = (userId: string) => api<UserProfile>('GET', `/users/${userId}`);
 // Up to 50 profiles at once, without counting as visits (room prefetch).
 export const getCards = (ids: string[]) => api<{ profiles: UserProfile[] }>('POST', '/users/cards', { ids });
@@ -194,16 +200,20 @@ export function createPost(p: { caption: string; file?: LocalFile; thumb?: Local
 export const deletePost = (postId: string) => api('DELETE', `/posts/${postId}`);
 export const likePost = (postId: string, on: boolean) => api<{ likes: number; likedByMe: boolean }>(on ? 'POST' : 'DELETE', `/posts/${postId}/like`);
 
-export type Conversation = { user: UserSummary; lastMessage: DirectMessage; cp: { type: CpType; label: CpLabel | null; since: string; level: CpLevel } | null };
+export type Conversation = { user: UserSummary; lastMessage: DirectMessage; cp: { type: CpType; label: CpLabel | null; since: string; level: CpLevel } | null; unread: number };
+export const getFriends = () => api<{ friends: (UserSummary & { online: boolean })[] }>('GET', '/me/friends'); // online first
+// Online friends get a banner now (invited); offline ones get a Join card in their inbox (notified).
+export const inviteToRoom = (roomId: string, userIds: string[]) => api<{ invited: number; notified: number }>('POST', `/rooms/${roomId}/invite`, { userIds });
+// A friend asked you to join their room (live, on any screen).
+export type RoomInvite = { roomId: string; title: string; coverUrl: string | null; kind: RoomKind; from: { userId: string; displayName: string | null; avatarUrl: string | null } };
 
 export type FoundUser = UserSummary & { publicId: number; specialId: string | null };
-export type PeopleKind = 'followers' | 'following' | 'visitors';
+export type PeopleKind = 'followers' | 'following' | 'visitors' | 'likes'; // visitors, likes: your own profile only
 // at = when they followed / last visited; visits only on the visitors list.
 export type Person = FoundUser & { isFollowing: boolean; at: string; visits?: number };
 export type CoinSeller = FoundUser & { since: string };
 export type CoinSellerStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | null; // null = never applied
 export const searchUsers = (q: string) => api<{ users: FoundUser[] }>('GET', `/users/search?q=${q}`);
-export const listConversations = () => api<{ conversations: Conversation[] }>('GET', '/dm');
 
 // "now", "5m", "3h", "2d", then a date.
 export function timeAgo(iso: string) {
@@ -215,6 +225,22 @@ export function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 export const setFollowing = (userId: string, follow: boolean) => api(follow ? 'POST' : 'DELETE', `/users/${userId}/follow`);
+
+// Online now (app open), else when they were last around.
+export type Presence = { userId: string; online: boolean; lastSeenAt: string | null };
+export const getPresence = (ids: string[]) => api<{ presence: Presence[] }>('POST', '/users/presence', { ids: ids.slice(0, 100) });
+// "Online" · "Last seen 5m ago" · "Last seen yesterday" · "Last seen 12 Oct" · "Offline" (no time known).
+// null only while it's still loading.
+export function presenceText(p: { online?: boolean; lastSeenAt?: string | null } | undefined) {
+  if (!p || p.online === undefined) return null;
+  if (p.online) return 'Online';
+  if (!p.lastSeenAt) return 'Offline';
+  const t = timeAgo(p.lastSeenAt);
+  const days = (Date.now() - new Date(p.lastSeenAt).getTime()) / 86_400_000;
+  if (t === 'now') return 'Last seen just now';
+  if (days >= 1 && days < 2) return 'Last seen yesterday';
+  return days < 7 ? `Last seen ${t} ago` : `Last seen ${t}`; // "5m" / "3h" / "4d" ago, or a date
+}
 
 // svg: optional artwork; animation: motion preset played when sent ("launch", else "pop").
 export type Gift = { id: string; name: string; coinPrice: number; maxQuantity: number; svg?: string | null; animation?: string | null };
