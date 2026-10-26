@@ -1,11 +1,10 @@
-import { Check, Clock, X } from 'lucide-react-native';
+import { Check, ChevronRight, Clock, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { answerCp, endCp, errorText, getCpOptions, proposeCp, type CpLabel, type CpOptions, type CpProposal, type CpType, type Relationship } from '../api';
-import { useNav } from '../nav';
 import { radius, space } from '../theme';
 import { confirmDialog } from './Dialog';
-import { Avatar, Button, Sheet, toast, usePalette } from './ui';
+import { Button, Sheet, toast, usePalette } from './ui';
 
 // One look per relationship, used on profiles, the room card and DM cards.
 export const CP_LOOK: Record<CpType, { emoji: string; name: string; tint: string }> = {
@@ -17,7 +16,7 @@ export const cpName = (type: CpType, label: CpLabel | null) =>
   type === 'LOVE' ? 'Love CP' : type === 'BESTIE' ? 'Best friend' : label === 'SISTER' ? 'Sister' : 'Brother';
 
 let optionsCache: CpOptions | null = null;
-function useCpOptions() {
+export function useCpOptions() {
   const [o, setO] = useState(optionsCache);
   useEffect(() => {
     if (!optionsCache) getCpOptions().then((r) => setO((optionsCache = r)), () => {});
@@ -25,82 +24,55 @@ function useCpOptions() {
   return o;
 }
 
-// Relationship slots on a profile. Your own filled slots can be ended; others' open that person's profile.
-export function CpSection({ relationships, isMe, onPropose, onEnded }: {
-  relationships: Relationship[];
-  isMe: boolean;
-  onPropose?: () => void; // someone else's profile, when you two aren't paired yet
-  onEnded?: (pairId: string) => void;
-}) {
+// Profile row that opens the CP screen: Love partner first, then how many best friends and family.
+export function CpEntry({ relationships, onPress }: { relationships: Relationship[]; onPress: () => void }) {
   const c = usePalette();
-  const nav = useNav();
-  const o = useCpOptions();
-
-  async function tap(r: Relationship) {
-    if (!isMe) return nav.push({ name: 'user', userId: r.user.userId });
-    const ok = await confirmDialog({
-      title: `End ${cpName(r.type, r.label)} with ${r.user.displayName}?`,
-      message: r.type === 'LOVE' ? "You both can't start a new Love CP for 7 days." : 'You can pair again any time.',
-      confirmText: 'End',
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      await endCp(r.pairId);
-      onEnded?.(r.pairId);
-    } catch (e) {
-      toast(errorText(e));
-    }
-  }
-
+  const love = relationships.find((r) => r.type === 'LOVE');
+  const n = (t: CpType) => relationships.filter((r) => r.type === t).length;
+  const parts = [love ? `💍 ${love.user.displayName} · Lv.${love.level.level}` : null, n('BESTIE') ? `🤝 ${n('BESTIE')}` : null, n('SIBLING') ? `👫 ${n('SIBLING')}` : null].filter(Boolean);
   return (
-    <View style={[st.section, { backgroundColor: c.surface, borderColor: c.border }]}>
-      <View style={st.head}>
-        <Text style={[st.title, { color: c.text }]}>CP</Text>
-        {onPropose ? (
-          <Pressable onPress={onPropose} accessibilityRole="button" style={[st.propose, { backgroundColor: c.primary }]}>
-            <Text style={st.proposeText}>Send CP request</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      {(Object.keys(CP_LOOK) as CpType[]).map((type) => {
-        const mine = relationships.filter((r) => r.type === type);
-        const max = o?.types[type].max ?? { LOVE: 1, BESTIE: 4, SIBLING: 7 }[type];
-        return (
-          <View key={type} style={st.row}>
-            <Text style={[st.rowName, { color: c.muted }]}>
-              {CP_LOOK[type].emoji} {CP_LOOK[type].name} <Text style={st.count}>{mine.length}/{max}</Text>
-            </Text>
-            <View style={st.slots}>
-              {mine.map((r) => (
-                <Pressable
-                  key={r.pairId}
-                  onPress={() => tap(r)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${cpName(r.type, r.label)}: ${r.user.displayName}${isMe ? '. Double tap to end' : ''}`}
-                  style={st.slot}>
-                  <View style={[st.ring, { borderColor: CP_LOOK[type].tint }]}>
-                    <Avatar id={r.user.userId} name={r.user.displayName} uri={r.user.avatarUrl} size={40} />
-                  </View>
-                  <Text style={[st.slotName, { color: c.text }]} numberOfLines={1}>{r.user.displayName}</Text>
-                  <Text style={[st.slotSub, { color: CP_LOOK[type].tint }]}>{type === 'SIBLING' ? cpName(type, r.label) : `${daysSince(r.since)}d`}</Text>
-                </Pressable>
-              ))}
-              {mine.length < max ? (
-                <View style={st.slot} accessibilityElementsHidden importantForAccessibility="no">
-                  <View style={[st.empty, { borderColor: c.border }]} />
-                  <Text style={[st.slotSub, { color: c.muted }]}>{max - mine.length} open</Text>
-                </View>
-              ) : null}
-            </View>
-          </View>
-        );
-      })}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityHint="Opens CP" style={[st.entry, { backgroundColor: c.surface, borderColor: c.border }]}>
+      <Text style={[st.title, { color: c.text }]}>CP</Text>
+      <Text style={[st.entryText, { color: c.muted }]} numberOfLines={1}>
+        {parts.length ? parts.join('   ') : 'Love, best friends, brothers & sisters'}
+      </Text>
+      <ChevronRight size={18} color={c.muted} />
+    </Pressable>
+  );
+}
+
+export const daysSince = (iso: string) => Math.max(1, Math.ceil((Date.now() - new Date(iso).getTime()) / 86_400_000));
+export const daysText = (iso: string) => `${daysSince(iso)} ${daysSince(iso) === 1 ? 'day' : 'days'}`;
+
+// "💍 Lv.5 · 23d": a CP's type, level and age in one small chip (inbox rows, profile).
+export function CpChip({ type, level, since }: { type: CpType; level: number; since: string }) {
+  const look = CP_LOOK[type];
+  return (
+    <View style={[st.chip, { backgroundColor: look.tint + '22', borderColor: look.tint + '66' }]} accessibilityLabel={`${look.name} CP, level ${level}, ${daysText(since)}`}>
+      <Text style={[st.chipText, { color: look.tint }]}>
+        {look.emoji} Lv.{level} · {daysSince(since)}d
+      </Text>
     </View>
   );
 }
 
-const daysSince = (iso: string) => Math.max(1, Math.ceil((Date.now() - new Date(iso).getTime()) / 86_400_000));
+// End one of your own CPs, after confirming. Resolves true when it ended.
+export async function confirmEndCp(r: Relationship) {
+  const ok = await confirmDialog({
+    title: `End ${cpName(r.type, r.label)} with ${r.user.displayName}?`,
+    message: r.type === 'LOVE' ? "You both can't start a new Love CP for 7 days." : 'You can pair again any time.',
+    confirmText: 'End',
+    danger: true,
+  });
+  if (!ok) return false;
+  try {
+    await endCp(r.pairId);
+    return true;
+  } catch (e) {
+    toast(errorText(e));
+    return false;
+  }
+}
 
 // Pick a relationship and send the request; the coins come back if it's declined or not answered in 48 hours.
 export function ProposeCpSheet({ visible, onClose, to }: { visible: boolean; onClose: () => void; to: { userId: string; displayName: string | null } }) {
@@ -222,20 +194,11 @@ const hoursLeft = (iso: string) => {
 };
 
 const st = StyleSheet.create({
-  section: { gap: space(3), padding: space(4), borderRadius: radius.lg, borderWidth: 1 },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 17, fontWeight: '800' },
-  propose: { height: 32, paddingHorizontal: space(3), borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  proposeText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  row: { gap: space(2) },
-  rowName: { fontSize: 13, fontWeight: '700' },
-  count: { fontWeight: '500' },
-  slots: { flexDirection: 'row', flexWrap: 'wrap', gap: space(3) },
-  slot: { width: 56, alignItems: 'center', gap: 2 },
-  ring: { borderWidth: 2, borderRadius: 24, padding: 2 },
-  empty: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderStyle: 'dashed' },
-  slotName: { fontSize: 11, fontWeight: '600', maxWidth: 56 },
-  slotSub: { fontSize: 10, fontWeight: '700' },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, borderWidth: 1 },
+  chipText: { fontSize: 10.5, fontWeight: '800' },
+  entry: { flexDirection: 'row', alignItems: 'center', gap: space(3), padding: space(4), borderRadius: radius.lg, borderWidth: 1 },
+  entryText: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'right' },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: space(2) },
   choice: { width: '48%', flexGrow: 1, alignItems: 'center', gap: 2, paddingVertical: space(3), borderRadius: radius.md, borderWidth: 1.5 },
   choiceEmoji: { fontSize: 26 },

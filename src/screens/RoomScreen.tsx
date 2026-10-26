@@ -9,7 +9,7 @@ import { ChatList, Composer } from '../room/ChatPanel';
 import { BigWinBanner } from '../room/BigWinBanner';
 import { SvipEntrance } from '../room/SvipEntrance';
 import { GiftAnimation } from '../room/GiftAnimation';
-import { GiftBanner, GiftSheet } from '../room/GiftSheet';
+import { GiftBanner, GiftCombo, GiftSheet, type LastGift } from '../room/GiftSheet';
 import { PeopleSheet } from '../room/PeopleSheet';
 import { PinGate } from '../room/PinGate';
 import { LiveStage } from '../room/LiveStage';
@@ -36,6 +36,7 @@ export function RoomScreen() {
   const [seatMenu, setSeatMenu] = useState<Seat | null>(null);
   const [giftTo, setGiftTo] = useState<string | undefined>();
   const [giftOpen, setGiftOpen] = useState(false);
+  const [lastGift, setLastGift] = useState<LastGift | null>(null); // drives the "send again" combo button
   const [menuOpen, setMenuOpen] = useState(false);
   const [gamesOpen, setGamesOpen] = useState(false);
   const [emotesOpen, setEmotesOpen] = useState(false);
@@ -188,6 +189,9 @@ export function RoomScreen() {
           charisma={snap.charisma?.totals ?? null}
           oneRow={snap.ludo}
           emotes={room.emotes}
+          cpOf={(a, b) =>
+            room.profiles[a]?.relationships?.find((r) => r.user.userId === b) ?? room.profiles[b]?.relationships?.find((r) => r.user.userId === a)
+          }
           onPress={onSeat}
         />
         {snap.ludo ? <LudoBoard roomId={snap.roomId} /> : null}
@@ -361,7 +365,12 @@ export function RoomScreen() {
         meId={me.userId}
         initialRecipient={giftTo}
         send={room.sendGift}
+        onSent={setLastGift}
+        onRecharge={() => nav.push({ name: 'recharge' })} // the room keeps running as a bubble
       />
+      {lastGift && !giftOpen ? (
+        <GiftCombo last={lastGift} send={room.sendGift} onDone={() => setLastGift(null)} onRecharge={() => nav.push({ name: 'recharge' })} />
+      ) : null}
 
       {/* More: games for everyone; seat layout for the owner and admins (moved here from the header). */}
       <RoomMenu

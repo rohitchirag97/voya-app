@@ -1,7 +1,8 @@
 import { Crown, Gem, Lock, MicOff, Plus, ShieldCheck } from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import type { Seat } from '../api';
+import type { Relationship, Seat } from '../api';
+import { CpLink } from '../components/CpLink';
 import { FramedAvatar } from '../components/Decor';
 import { OfficialMark } from '../components/Official';
 import { Avatar } from '../components/ui';
@@ -21,11 +22,12 @@ type Props = {
   charisma?: Record<string, number> | null; // set while the charisma counter is on: coins received per userId
   oneRow?: boolean; // Ludo mode: every seat in a single row that scrolls sideways, leaving room for the board
   emotes?: Record<string, SeatEmote>; // emote playing over each seated person (by userId)
+  cpOf?: (a: string, b: string) => Relationship | undefined; // CP between two seated people, to link side-by-side seats
   onPress: (seat: Seat) => void;
 };
 
 // Renders exactly the server's rowLayout (8=4+4, 10=5+5, 12=4+4+4, 16=4x4, 20=4x5), row-major.
-export function SeatGrid({ rowLayout, seats, meId, hostUserId, admins, levels, pendingSeat, charisma, oneRow, emotes, onPress }: Props) {
+export function SeatGrid({ rowLayout, seats, meId, hostUserId, admins, levels, pendingSeat, charisma, oneRow, emotes, cpOf, onPress }: Props) {
   const { width } = useWindowDimensions();
   const maxCols = Math.max(...rowLayout);
   const cell = oneRow ? 64 : (width - space(4) * 2) / maxCols;
@@ -51,10 +53,33 @@ export function SeatGrid({ rowLayout, seats, meId, hostUserId, admins, levels, p
     />
   );
 
+  // A row of seats plus a neon link over each gap between two CP partners sitting side by side.
+  const row = (list: Seat[]) => {
+    const linkTop = space(1); // the tile's top padding; the link spans the avatar box height
+    const links = list.slice(1).flatMap((right, j) => {
+      const a = list[j]!.occupant?.userId;
+      const b = right.occupant?.userId;
+      const cp = a && b ? cpOf?.(a, b) : undefined;
+      if (!cp) return [];
+      const reach = 4; // overlap the pictures a little so the threads look attached
+      return [
+        <View key={right.seatIndex} style={[st.link, { left: (j + 0.5) * cell + avatar / 2 - reach, top: linkTop }]} pointerEvents="none">
+          <CpLink width={cell - avatar + reach * 2} height={avatar + 10} type={cp.type} label={cp.label} short />
+        </View>,
+      ];
+    });
+    return (
+      <View style={st.seats}>
+        {list.map(tile)}
+        {links}
+      </View>
+    );
+  };
+
   if (oneRow) {
     return (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space(2) }} testID="seat-row-ludo">
-        {seats.map(tile)}
+        {row(seats)}
       </ScrollView>
     );
   }
@@ -62,7 +87,7 @@ export function SeatGrid({ rowLayout, seats, meId, hostUserId, admins, levels, p
     <View style={{ paddingHorizontal: space(4), gap: rowLayout.length > 3 ? space(1) : space(3) }}>
       {rowLayout.map((cols, r) => (
         <View key={r} style={st.row} testID={`seat-row-${r}`}>
-          {seats.slice(start, (start += cols)).map(tile)}
+          {row(seats.slice(start, (start += cols)))}
         </View>
       ))}
     </View>
@@ -206,6 +231,9 @@ const short = (n: number) => (n >= 1e6 ? +(n / 1e6).toFixed(1) + 'M' : n >= 1000
 
 const st = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'center' },
+  seats: { flexDirection: 'row' },
+  // Above the pictures (the owner's glow has elevation 10) but under emotes (20).
+  link: { position: 'absolute', zIndex: 4, elevation: 12 },
   tile: { alignItems: 'center', paddingVertical: space(1), gap: 3 },
   avatarWrap: { borderRadius: 999 },
   ownerGlow: { shadowColor: colors.gold, shadowOpacity: 0.9, shadowRadius: 12, elevation: 10 },

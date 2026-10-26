@@ -1,8 +1,9 @@
-import { Handshake, Send } from 'lucide-react-native';
+import { Handshake, ImagePlus, Send, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { api, errorText, newId, type DirectMessage, type StaffRole } from '../api';
-import { CpRequestCard } from '../components/Cp';
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { api, errorText, imageUri, newId, sendDmPhoto, type Conversation, type DirectMessage, type StaffRole } from '../api';
+import { pickPhoto } from './ProfileParts';
+import { CP_LOOK, cpName, CpRequestCard, daysText } from '../components/Cp';
 import { OfficialMark } from '../components/Official';
 import { Avatar, Screen, s, toast } from '../components/ui';
 import { useNav } from '../nav';
@@ -22,6 +23,8 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
   const [cursor, setCursor] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [viewing, setViewing] = useState<string | null>(null); // full-screen photo
+  const [cp, setCp] = useState<Conversation['cp']>(null); // your CP with them, shown under the header
 
   const add = (list: DirectMessage[]) => setMessages((prev) => newestFirst([...list, ...(prev ?? [])]));
 
@@ -29,12 +32,13 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
     async (older = false) => {
       if (older && !cursor) return;
       try {
-        const r = await api<{ messages: DirectMessage[]; nextCursor: string | null }>(
+        const r = await api<{ messages: DirectMessage[]; nextCursor: string | null; cp: Conversation['cp'] }>(
           'GET',
           `/dm/${userId}?limit=30${older && cursor ? `&cursor=${cursor}` : ''}`,
         );
         add(r.messages);
         setCursor(r.nextCursor);
+        if (!older) setCp(r.cp ?? null);
       } catch (e) {
         toast(errorText(e));
         setMessages((m) => m ?? []);
@@ -79,6 +83,20 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
     }
   }
 
+  // Photos are resized on the phone first (long side 1600px), like post photos.
+  async function sendPhoto() {
+    const file = await pickPhoto(1600);
+    if (!file) return;
+    setSending(true);
+    try {
+      add([await sendDmPhoto(userId, file, newId())]);
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <Screen backdrop>
       <View style={st.top}>
@@ -100,6 +118,27 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
         </Pressable>
       </View>
 
+      {/* CP partners: their bond, level and progress right under the header. */}
+      {cp ? (
+        <Pressable onPress={() => nav.push({ name: 'cp', userId: me.userId })} accessibilityRole="button" accessibilityHint="Opens your CP" style={[st.cp, { borderColor: CP_LOOK[cp.type].tint + '66', backgroundColor: CP_LOOK[cp.type].tint + '18' }]}>
+          <Text style={st.cpEmoji}>{CP_LOOK[cp.type].emoji}</Text>
+          <View style={st.cpMid}>
+            <Text style={[st.cpTitle, { color: CP_LOOK[cp.type].tint }]}>
+              {cpName(cp.type, cp.label)} · Lv.{cp.level.level}
+            </Text>
+            <View style={st.cpTrack}>
+              <View
+                style={[
+                  st.cpFill,
+                  { backgroundColor: CP_LOOK[cp.type].tint, width: `${cp.level.next === null ? 100 : Math.max(3, ((cp.level.points - cp.level.current) / (cp.level.next - cp.level.current)) * 100)}%` },
+                ]}
+              />
+            </View>
+          </View>
+          <Text style={st.cpDays}>{daysText(cp.since)}</Text>
+        </Pressable>
+      ) : null}
+
       {messages === null ? (
         <ActivityIndicator color={colors.primary} style={{ flex: 1 }} />
       ) : (
@@ -116,6 +155,15 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
             if (item.cp) {
               return <CpRequestCard cp={item.cp} meId={me.userId} onChange={(cp) => setMessages((prev) => prev && prev.map((m) => (m.id === item.id ? { ...m, cp } : m)))} />;
             }
+            if (item.imageUrl) {
+              const uri = imageUri(item.imageUrl);
+              return (
+                <Pressable onPress={() => setViewing(uri)} accessibilityRole="imagebutton" accessibilityLabel={mine ? 'Your photo. Open' : `Photo from ${displayName}. Open`} style={[st.photoWrap, mine ? st.mine : st.theirs]}>
+                  <Image source={{ uri }} style={st.photo} resizeMode="cover" />
+                  <Text style={[st.time, st.photoTime]}>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                </Pressable>
+              );
+            }
             return (
               <View style={[st.bubble, mine ? st.mine : st.theirs]}>
                 <Text style={[st.text, !mine && { color: colors.text }]}>{item.body}</Text>
@@ -127,6 +175,9 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
       )}
 
       <View style={st.bar}>
+        <Pressable onPress={sendPhoto} disabled={sending} accessibilityRole="button" accessibilityLabel="Send a photo" hitSlop={6} style={[st.attach, sending && { opacity: 0.5 }]}>
+          {sending ? <ActivityIndicator color={colors.primary} /> : <ImagePlus size={22} color={colors.primary} strokeWidth={2.2} />}
+        </Pressable>
         <TextInput
           value={text}
           onChangeText={setText}
@@ -146,6 +197,14 @@ export function DmScreen({ userId, displayName, staffRole }: { userId: string; d
           <Send size={19} color="#fff" strokeWidth={2.4} />
         </Pressable>
       </View>
+      <Modal visible={!!viewing} transparent animationType="fade" onRequestClose={() => setViewing(null)} statusBarTranslucent>
+        <View style={st.viewer}>
+          {viewing ? <Image source={{ uri: viewing }} style={st.viewerImage} resizeMode="contain" /> : null}
+          <Pressable onPress={() => setViewing(null)} accessibilityRole="button" accessibilityLabel="Close photo" hitSlop={12} style={st.viewerClose}>
+            <X size={26} color="#fff" />
+          </Pressable>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -175,5 +234,19 @@ const st = StyleSheet.create({
     paddingVertical: space(3),
     fontSize: 15,
   },
+  cp: { flexDirection: 'row', alignItems: 'center', gap: space(3), marginHorizontal: space(4), marginBottom: space(2), paddingHorizontal: space(3), paddingVertical: space(2), borderRadius: radius.md, borderWidth: 1 },
+  cpEmoji: { fontSize: 22 },
+  cpMid: { flex: 1, gap: 4 },
+  cpTitle: { fontSize: 13, fontWeight: '900' },
+  cpTrack: { height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
+  cpFill: { height: '100%', borderRadius: 3 },
+  cpDays: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  attach: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
+  photoWrap: { borderRadius: radius.md, overflow: 'hidden', padding: 3 },
+  photo: { width: 220, height: 260, borderRadius: radius.md - 3 },
+  photoTime: { position: 'absolute', right: 10, bottom: 8, color: '#fff', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
+  viewer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  viewerImage: { width: '100%', height: '100%' },
+  viewerClose: { position: 'absolute', top: 48, right: 20, padding: 6, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.5)' },
   send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });

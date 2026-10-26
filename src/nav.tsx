@@ -24,6 +24,7 @@ export type Route =
   | { name: 'settings' }
   | { name: 'comments'; postId: string; postAuthorId: string }
   | { name: 'people'; userId: string; kind: PeopleKind }
+  | { name: 'cp'; userId: string }
   | { name: 'coinSellers' }
   | { name: 'post'; post: Post };
 

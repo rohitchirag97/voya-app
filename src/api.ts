@@ -128,9 +128,15 @@ export type UserProfile = Me & {
 // ---------- CP (relationships) ----------
 export type CpType = 'LOVE' | 'BESTIE' | 'SIBLING';
 export type CpLabel = 'BROTHER' | 'SISTER';
-export type Relationship = { pairId: string; type: CpType; label: CpLabel | null; since: string; user: { userId: string; displayName: string | null; avatarUrl: string | null } };
+// CP level from the pair's points: `current` = points where this level began, `next` = points for the next (null at max).
+export type CpLevel = { level: number; points: number; current: number; next: number | null };
+export type Relationship = { pairId: string; type: CpType; label: CpLabel | null; since: string; level: CpLevel; user: { userId: string; displayName: string | null; avatarUrl: string | null; frameId: string | null } };
 export type CpProposal = { id: string; fromId: string; toId: string; type: CpType; label: CpLabel | null; price: number; status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'CANCELLED'; expiresAt: string };
-export type CpOptions = { types: Record<CpType, { max: number; price: number; gift: string }>; proposalTtlMs: number };
+export type CpOptions = {
+  types: Record<CpType, { max: number; price: number; gift: string }>;
+  proposalTtlMs: number;
+  points: { giftPerCoin: number; dm: { each: number; dailyCap: number }; together: { present: number; seated: number; dailyCap: number } };
+};
 export const getCpOptions = () => api<CpOptions>('GET', '/cp/options');
 export const proposeCp = (toUserId: string, type: CpType, label?: CpLabel) => api<{ proposal: CpProposal; balance: number }>('POST', '/cp/proposals', { toUserId, type, label });
 export const answerCp = (id: string, action: 'accept' | 'decline' | 'cancel') => api<CpProposal>('POST', `/cp/proposals/${id}/${action}`);
@@ -141,7 +147,7 @@ export const equipCosmetics = (change: { avatarFrameId?: string | null; cardDeco
 export const isFriend = (p: UserProfile) => p.isFollowing && p.followsMe; // mutual follow
 export const followLabel = (p: UserProfile) =>
   isFriend(p) ? 'Friends' : p.isFollowing ? 'Following' : p.followsMe ? 'Follow back' : 'Follow';
-export type DirectMessage = { id: number; senderId: string; recipientId: string; body: string; clientMessageId: string | null; createdAt: string; cp?: CpProposal | null };
+export type DirectMessage = { id: number; senderId: string; recipientId: string; body: string; clientMessageId: string | null; createdAt: string; cp?: CpProposal | null; imageUrl?: string | null };
 export const getProfile = (userId: string) => api<UserProfile>('GET', `/users/${userId}`);
 // Up to 50 profiles at once, without counting as visits (room prefetch).
 export const getCards = (ids: string[]) => api<{ profiles: UserProfile[] }>('POST', '/users/cards', { ids });
@@ -188,7 +194,7 @@ export function createPost(p: { caption: string; file?: LocalFile; thumb?: Local
 export const deletePost = (postId: string) => api('DELETE', `/posts/${postId}`);
 export const likePost = (postId: string, on: boolean) => api<{ likes: number; likedByMe: boolean }>(on ? 'POST' : 'DELETE', `/posts/${postId}/like`);
 
-export type Conversation = { user: UserSummary; lastMessage: DirectMessage };
+export type Conversation = { user: UserSummary; lastMessage: DirectMessage; cp: { type: CpType; label: CpLabel | null; since: string; level: CpLevel } | null };
 
 export type FoundUser = UserSummary & { publicId: number; specialId: string | null };
 export type PeopleKind = 'followers' | 'following' | 'visitors';
@@ -368,6 +374,11 @@ const photoForm = (file: LocalFile) => {
   return form;
 };
 export const uploadAvatar = (file: LocalFile) => api<Me>('POST', '/me/avatar', photoForm(file));
+export const sendDmPhoto = (userId: string, file: LocalFile, clientMessageId: string) => {
+  const form = photoForm(file);
+  form.append('clientMessageId', clientMessageId);
+  return api<DirectMessage>('POST', `/dm/${userId}/image`, form);
+};
 export const removeAvatar = () => api<Me>('DELETE', '/me/avatar');
 export const addCover = (file: LocalFile) => api<Me>('POST', '/me/covers', photoForm(file));
 export const setCovers = (coverUrls: string[]) => api<Me>('PUT', '/me/covers', { coverUrls });

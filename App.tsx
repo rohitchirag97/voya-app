@@ -15,6 +15,7 @@ import { MainTabs } from './src/screens/MainTabs';
 import { NewPostScreen } from './src/screens/NewPostScreen';
 import { OtpScreen } from './src/screens/OtpScreen';
 import { PeopleScreen } from './src/screens/PeopleScreen';
+import { CpScreen } from './src/screens/CpScreen';
 import { PostScreen } from './src/screens/PostsScreen';
 import { ProfileSetupScreen } from './src/screens/ProfileSetupScreen';
 import { RechargeScreen } from './src/screens/RechargeScreen';
@@ -150,6 +151,8 @@ export default function App() {
         <CommentsScreen key={route.postId} postId={route.postId} postAuthorId={route.postAuthorId} />
       ) : route.name === 'people' ? (
         <PeopleScreen key={route.userId + route.kind} userId={route.userId} kind={route.kind} />
+      ) : route.name === 'cp' ? (
+        <CpScreen key={route.userId} userId={route.userId} />
       ) : route.name === 'settings' ? (
         <SettingsScreen />
       ) : route.name === 'search' ? (

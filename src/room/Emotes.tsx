@@ -5,16 +5,18 @@ import { roomColors as colors, radius, space } from '../theme';
 
 // Animated emotes. Anyone in the room can send one; it plays over the sender's seat (when seated) and fades,
 // while the line stays in chat. The server draws dice / roller / coin results. Animations are drawn in code.
-export type EmoteKey = 'hand' | 'smile' | 'kiss' | 'angry' | 'dice' | 'roller' | 'coin' | 'heart';
+export type EmoteKey = 'hand' | 'smile' | 'laugh' | 'cry' | 'kiss' | 'angry' | 'heart' | 'dice' | 'roller' | 'coin';
 export const EMOTES: { key: EmoteKey; icon: string; label: string }[] = [
   { key: 'hand', icon: '✋', label: 'Raise hand' },
   { key: 'smile', icon: '😊', label: 'Smile' },
+  { key: 'laugh', icon: '😂', label: 'Laugh' },
+  { key: 'cry', icon: '😭', label: 'Cry' },
   { key: 'kiss', icon: '😘', label: 'Flying kiss' },
   { key: 'angry', icon: '😠', label: 'Angry' },
+  { key: 'heart', icon: '❤️', label: 'Heart' },
   { key: 'dice', icon: '🎲', label: 'Dice' },
   { key: 'roller', icon: '🎰', label: 'Roller' },
   { key: 'coin', icon: '🪙', label: 'Coin flip' },
-  { key: 'heart', icon: '❤️', label: 'Heart' },
 ];
 const RANDOM: EmoteKey[] = ['dice', 'roller', 'coin'];
 const ROLL_MS = 1300; // dice / roller / coin spin this long before showing the result
@@ -65,8 +67,8 @@ function Face({ emote, size }: { emote: EmoteKey; size: number }) {
   const wave = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.spring(pop, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }).start();
-    const fast = emote === 'angry';
-    const loop = Animated.loop(Animated.timing(wave, { toValue: 1, duration: fast ? 160 : 520, easing: Easing.inOut(Easing.sin), useNativeDriver: true }));
+    const ms = emote === 'angry' ? 160 : emote === 'laugh' ? 240 : emote === 'cry' ? 300 : 520;
+    const loop = Animated.loop(Animated.timing(wave, { toValue: 1, duration: ms, easing: Easing.inOut(Easing.sin), useNativeDriver: true }));
     loop.start();
     return () => loop.stop();
   }, [pop, wave, emote]);
@@ -78,7 +80,11 @@ function Face({ emote, size }: { emote: EmoteKey; size: number }) {
         ? [{ translateX: swing(-3, 3) }]
         : emote === 'heart'
           ? [{ scale: swing(1, 1.18) }]
-          : [{ translateY: swing(0, -5) }];
+          : emote === 'laugh'
+            ? [{ rotate: swing('-14deg', '14deg') }, { translateY: swing(0, -4) }] // rocking with laughter
+            : emote === 'cry'
+              ? [{ translateX: swing(-1.5, 1.5) }] // shivering sobs
+              : [{ translateY: swing(0, -5) }];
   const icon = EMOTES.find((e) => e.key === emote)!.icon;
   return (
     <View style={st.center}>
@@ -86,9 +92,17 @@ function Face({ emote, size }: { emote: EmoteKey; size: number }) {
         {icon}
       </Animated.Text>
       {emote === 'angry' ? <Text style={[st.corner, { fontSize: size * 0.3 }]}>💢</Text> : null}
-      {emote === 'kiss' || emote === 'heart'
-        ? [0, 1, 2, 3].map((i) => <Floater key={i} delay={250 + i * 380} x={(i % 2 ? 1 : -1) * size * (0.18 + 0.08 * i)} rise={size * 0.9} char={emote === 'kiss' ? (i % 2 ? '💋' : '💗') : '💗'} size={size * 0.26} />)
+      {emote === 'heart'
+        ? [0, 1, 2, 3].map((i) => <Floater key={i} delay={250 + i * 380} x={(i % 2 ? 1 : -1) * size * (0.18 + 0.08 * i)} rise={size * 0.9} char="💗" size={size * 0.26} />)
         : null}
+      {/* Flying kiss: kisses and hearts blown out to the seats on both sides, alternating left and right. */}
+      {emote === 'kiss'
+        ? [0, 1, 2, 3, 4, 5].map((i) => <FlyingKiss key={i} delay={250 + i * 300} dir={i % 2 ? 1 : -1} reach={size * 1.35} char={i % 3 === 2 ? '💗' : '💋'} size={size * 0.26} />)
+        : null}
+      {emote === 'laugh'
+        ? [0, 1, 2, 3].map((i) => <Floater key={i} delay={200 + i * 420} x={(i % 2 ? 1 : -1) * size * 0.32} rise={size * 0.8} char={i % 2 ? 'HA' : 'ha'} size={size * 0.22} />)
+        : null}
+      {emote === 'cry' ? [0, 1, 2, 3, 4, 5].map((i) => <Tear key={i} delay={200 + i * 330} x={(i % 2 ? 1 : -1) * size * 0.2} fall={size * 0.55} size={size * 0.2} />) : null}
     </View>
   );
 }
@@ -107,6 +121,52 @@ function Floater({ delay, x, rise, char, size }: { delay: number; x: number; ris
         {
           opacity: v.interpolate({ inputRange: [0, 0.1, 0.7, 1], outputRange: [0, 1, 1, 0] }),
           transform: [{ translateX: x }, { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, -rise] }) }, { scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.1] }) }],
+        },
+      ]}>
+      {char}
+    </Animated.Text>
+  );
+}
+
+// A tear that drips from the eyes and falls away.
+function Tear({ delay, x, fall, size }: { delay: number; x: number; fall: number; size: number }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.sequence([Animated.delay(delay), Animated.timing(v, { toValue: 1, duration: 900, easing: Easing.in(Easing.quad), useNativeDriver: true })]).start();
+  }, [v, delay]);
+  return (
+    <Animated.Text
+      style={[
+        st.float,
+        { fontSize: size },
+        {
+          opacity: v.interpolate({ inputRange: [0, 0.1, 0.75, 1], outputRange: [0, 1, 1, 0] }),
+          transform: [{ translateX: x }, { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, fall] }) }],
+        },
+      ]}>
+      💧
+    </Animated.Text>
+  );
+}
+
+// A kiss blown sideways (dir -1 left, 1 right): arcs up, then drifts down onto the neighbour's seat and fades.
+function FlyingKiss({ delay, dir, reach, char, size }: { delay: number; dir: 1 | -1; reach: number; char: string; size: number }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.sequence([Animated.delay(delay), Animated.timing(v, { toValue: 1, duration: 1100, easing: Easing.out(Easing.quad), useNativeDriver: true })]).start();
+  }, [v, delay]);
+  return (
+    <Animated.Text
+      style={[
+        st.float,
+        { fontSize: size },
+        {
+          opacity: v.interpolate({ inputRange: [0, 0.1, 0.75, 1], outputRange: [0, 1, 1, 0] }),
+          transform: [
+            { translateX: v.interpolate({ inputRange: [0, 1], outputRange: [dir * size * 0.6, dir * reach] }) },
+            { translateY: v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, -size * 1.2, -size * 0.3] }) },
+            { scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.15] }) },
+          ],
         },
       ]}>
       {char}

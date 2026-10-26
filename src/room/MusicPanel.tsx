@@ -29,11 +29,11 @@ async function audioPermission() {
   });
 }
 
-// Files from the system picker get a local copy: ZEGO needs a plain file path (it can't read iOS security-scoped urls).
+// Files from the system picker get a lasting local copy (the playlist persists): ZEGO needs a plain file path (it can't read iOS security-scoped urls).
 async function browseFiles(): Promise<Song[]> {
   try {
     const files = await pick({ type: [types.audio], allowMultiSelection: true });
-    const copies = await keepLocalCopy({ files: files.map((f) => ({ uri: f.uri, fileName: f.name ?? 'song' })) as [{ uri: string; fileName: string }], destination: 'cachesDirectory' });
+    const copies = await keepLocalCopy({ files: files.map((f) => ({ uri: f.uri, fileName: f.name ?? 'song' })) as [{ uri: string; fileName: string }], destination: 'documentDirectory' });
     return copies.flatMap((c, i) =>
       c.status === 'success'
         ? [{ id: c.sourceUri, uri: decodeURIComponent(c.localUri.replace(/^file:\/\//, '')), title: (files[i]!.name ?? 'Song').replace(/\.[^.]+$/, ''), artist: null, durationMs: null }]
@@ -45,14 +45,14 @@ async function browseFiles(): Promise<Song[]> {
   }
 }
 
-// Shown in the room while a song is loaded; opens the music page.
+// Shown in the room only while a song is playing (paused or stopped: hidden); opens the music page.
 export function MusicPill({ onPress }: { onPress: () => void }) {
   const m = useMusic();
   const song = m.queue[m.current];
-  if (!song) return null;
+  if (!song || !m.playing) return null;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${m.playing ? 'Playing' : 'Paused'}: ${song.title}. Open music`} style={st.pill}>
-      {m.playing ? <Music2 size={14} color="#fff" strokeWidth={2.6} /> : <Pause size={14} color="#fff" strokeWidth={2.6} />}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`Playing: ${song.title}. Open music`} style={st.pill}>
+      <Music2 size={14} color="#fff" strokeWidth={2.6} />
       <Text style={st.pillText} numberOfLines={1}>{song.title}</Text>
     </Pressable>
   );

@@ -27,7 +27,8 @@ import {
   type Post,
   type UserProfile,
 } from '../api';
-import { CpSection, ProposeCpSheet } from '../components/Cp';
+import { CpEntry } from '../components/Cp';
+import { useCatalog } from '../room/catalog';
 import { OfficialMark } from '../components/Official';
 import { SvipBadge } from '../components/Svip';
 import { FollowIcon } from '../components/Icons';
@@ -44,6 +45,7 @@ import { BadgeShelf, BadgesSection, chooseAvatar, CoverSheet, CoverSlideshow, De
 import { colors, gradients, radius, space, tintPairFor } from '../theme';
 
 const AVATAR = 100;
+const PARTNER = 60; // Love CP partner's picture beside yours
 const MAX_COVERS = 6; // same as the server's limit
 // Covers for profiles with no cover photos or card decoration. Sources: assets/avatars/cover-*.svg.
 const DEFAULT_COVER = require('../../assets/avatars/cover-default.png');
@@ -65,8 +67,9 @@ export function UserProfileScreen({
   const [cardH, setCardH] = useState(380); // the cover decoration / photos are drawn at the cover's real height
   const [coversOpen, setCoversOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
-  const [cpOpen, setCpOpen] = useState(false);
   const insets = useSafeAreaInsets();
+  const catalog = useCatalog();
+  const love = p?.relationships?.find(r => r.type === 'LOVE');
 
   useEffect(() => {
     getProfile(userId)
@@ -141,20 +144,47 @@ export function UserProfileScreen({
             ) : null}
             <View style={st.heroRow}>
               <View style={st.heroLeft}>
-                {/* With a photo: open it full screen (yours also offers Change / Remove). Without one: yours goes straight to picking. */}
-                <Pressable
-                  onPress={() => (p.avatarUrl ? setPhotoOpen(true) : chooseAvatar(p.svip >= 3).then(url => url && setAvatar(url)))}
-                  disabled={!p.isMe && !p.avatarUrl}
-                  accessibilityRole="button"
-                  accessibilityLabel={p.avatarUrl ? 'View profile picture' : 'Add a profile picture'}
-                >
-                  <FramedAvatar id={p.userId} name={p.displayName} uri={p.avatarUrl} size={AVATAR} frameSvg={p.avatarFrame?.svg} />
-                  {p.isMe ? (
-                    <View style={st.camera}>
-                      <Camera size={14} color="#fff" strokeWidth={2.6} />
-                    </View>
+                <View style={st.avatarRow}>
+                  {/* With a photo: open it full screen (yours also offers Change / Remove). Without one: yours goes straight to picking. */}
+                  <Pressable
+                    onPress={() => (p.avatarUrl ? setPhotoOpen(true) : chooseAvatar(p.svip >= 3).then(url => url && setAvatar(url)))}
+                    disabled={!p.isMe && !p.avatarUrl}
+                    accessibilityRole="button"
+                    accessibilityLabel={p.avatarUrl ? 'View profile picture' : 'Add a profile picture'}
+                  >
+                    <FramedAvatar id={p.userId} name={p.displayName} uri={p.avatarUrl} size={AVATAR} frameSvg={p.avatarFrame?.svg} />
+                    {p.isMe ? (
+                      <View style={st.camera}>
+                        <Camera size={14} color="#fff" strokeWidth={2.6} />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                  {/* Love CP: the partner's framed picture tucked against yours, a heart where they meet. */}
+                  {love ? (
+                    <>
+                      <View style={st.loveHeart} pointerEvents="none">
+                        <Text style={st.loveHeartText}>💗</Text>
+                      </View>
+                      <Pressable
+                        onPress={() => nav.push({ name: 'user', userId: love.user.userId })}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Love CP: ${love.user.displayName}. Open their profile`}
+                        style={st.partner}
+                      >
+                        <FramedAvatar
+                          id={love.user.userId}
+                          name={love.user.displayName}
+                          uri={love.user.avatarUrl}
+                          size={PARTNER}
+                          frameSvg={love.user.frameId ? catalog.frames[love.user.frameId]?.svg : undefined}
+                        />
+                        <Text style={st.partnerName} numberOfLines={1}>
+                          {love.user.displayName}
+                        </Text>
+                      </Pressable>
+                    </>
                   ) : null}
-                </Pressable>
+                </View>
                 <View style={st.nameRow}>
                   <Text style={st.name} numberOfLines={1}>
                     {p.displayName}
@@ -236,12 +266,7 @@ export function UserProfileScreen({
           )}
           {section === 'profile' ? (
             <>
-              <CpSection
-                relationships={p.relationships ?? []}
-                isMe={p.isMe}
-                onPropose={!p.isMe && !p.relationships?.some(r => r.user.userId === nav.me?.userId) ? () => setCpOpen(true) : undefined}
-                onEnded={pairId => setP({ ...p, relationships: p.relationships.filter(r => r.pairId !== pairId) })}
-              />
+              <CpEntry relationships={p.relationships ?? []} onPress={() => nav.push({ name: 'cp', userId: p.userId })} />
               <DetailsSection profile={p} />
             </>
           ) : section === 'badges' ? (
@@ -270,7 +295,6 @@ export function UserProfileScreen({
           gifOk={p.svip >= 3} // SVIP3 perk: animated profile picture
         />
       ) : null}
-      {p && !p.isMe ? <ProposeCpSheet visible={cpOpen} onClose={() => setCpOpen(false)} to={p} /> : null}
       {p?.isMe ? (
         <CoverSheet
           visible={coversOpen}
@@ -623,6 +647,24 @@ const st = StyleSheet.create({
   hero: { marginHorizontal: -space(4), gap: space(3), paddingBottom: space(10), borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' },
   heroRow: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: space(4), gap: space(3) },
   heroLeft: { flex: 1, alignItems: 'flex-start', gap: space(2) },
+  avatarRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  // Pulled left over the frame's empty margin so the two pictures sit together.
+  partner: { alignItems: 'center', gap: 2, maxWidth: 84, marginLeft: -26, marginBottom: 6 },
+  loveHeart: {
+    zIndex: 2,
+    elevation: 6,
+    marginLeft: -20,
+    marginBottom: 34,
+    marginRight: -6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  loveHeartText: { fontSize: 13 },
+  partnerName: { color: '#fff', fontSize: 11, fontWeight: '700', maxWidth: 84 },
   camera: { position: 'absolute', right: 4, bottom: 4, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderWidth: 2, borderColor: '#fff' },
   coverBtn: { position: 'absolute', right: space(4), bottom: space(12), zIndex: 2, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: space(3), paddingVertical: 6, borderRadius: radius.pill, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
   coverBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },

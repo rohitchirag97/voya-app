@@ -33,6 +33,8 @@ type Handlers = {
 
 // Android foreground service (RoomCallService.kt) that keeps the room's audio and socket alive in the background.
 const RoomCall: { start(mic: boolean): void; stop(): void } | undefined = Platform.OS === 'android' ? NativeModules.RoomCall : undefined;
+// Android (MusicLibrary.kt): keeps the playlist across app restarts. shortcut: no iOS store yet; the playlist lasts one session there.
+const PlaylistStore: { savePlaylist(json: string): void; loadPlaylist(): Promise<string | null> } | undefined = NativeModules.MusicLibrary;
 
 export async function ensureMicPermission() {
   if (Platform.OS !== 'android') return true;
@@ -79,6 +81,16 @@ class ZegoAudioRoomService {
   // Kept for the whole app session, like beauty, so the playlist carries over to your next seat.
   music: Music = { queue: [], current: -1, playing: false, songVolume: 60, micVolume: 100 };
   private musicListeners = new Set<(m: Music) => void>();
+
+  constructor() {
+    // The saved playlist comes back on app start (nothing playing until the user taps a song).
+    PlaylistStore?.loadPlaylist()
+      .then((json) => {
+        const queue: Song[] = json ? JSON.parse(json) : [];
+        if (queue.length && !this.music.queue.length) this.setMusic({ queue });
+      })
+      .catch(() => {});
+  }
 
   async join(creds: ZegoCreds, displayName: string, h: Handlers, opts: { video?: boolean } = {}) {
     if (this.roomId) await this.leave();
@@ -179,6 +191,7 @@ class ZegoAudioRoomService {
 
   // ---------- music (from a seat) ----------
   private setMusic(m: Partial<Music>) {
+    if (m.queue) PlaylistStore?.savePlaylist(JSON.stringify(m.queue));
     this.music = { ...this.music, ...m };
     for (const fn of this.musicListeners) fn(this.music);
   }

@@ -2,6 +2,7 @@ import { MessageCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { errorText, listConversations, timeAgo, type Conversation } from '../api';
+import { CpChip } from '../components/Cp';
 import { OfficialMark } from '../components/Official';
 import { SvipBadge } from '../components/Svip';
 import { LevelBadge } from '../components/Level';
@@ -80,6 +81,7 @@ export function MessagesScreen() {
                   <OfficialMark role={item.user.staffRole} />
                   <SvipBadge tier={item.user.svip} />
                   {item.user.level ? <LevelBadge level={item.user.level} /> : null}
+                  {item.cp ? <CpChip type={item.cp.type} level={item.cp.level.level} since={item.cp.since} /> : null}
                 </View>
                 <Text style={st.preview} numberOfLines={1}>
                   {mine ? 'You: ' : ''}

@@ -71,6 +71,20 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
         .catch(() => ids.forEach((id) => asked.current.delete(id))); // retried on the next participant change
     }
   }, [participantIds]);
+  // Re-read the cards of people who just sat down, so CP links between neighbouring seats are current.
+  const refreshCards = (ids: string[]) =>
+    ids.length && getCards(ids.slice(0, 50)).then((r) => setProfiles((p) => ({ ...p, ...Object.fromEntries(r.profiles.map((x) => [x.userId, x])) })), () => {});
+  const seatedIds = snap?.seats.flatMap((x) => (x.occupant ? [x.occupant.userId] : [])) ?? [];
+  const seatedKey = seatedIds.join(',');
+  const prevSeated = useRef(new Set<string>());
+  useEffect(() => {
+    const now = new Set(seatedIds);
+    refreshCards(seatedIds.filter((id) => !prevSeated.current.has(id)));
+    prevSeated.current = now;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seatedKey]);
+  const seatedRef = useRef(seatedIds);
+  seatedRef.current = seatedIds;
   const socket = useRef<Socket | null>(null);
 
   // Your own "X joined" notice is skipped: the entrance effect is enough. Everyone else still sees it.
@@ -185,6 +199,9 @@ export function useRoom(roomId: string, me: Me, created?: { room: RoomSnapshot; 
         sender: null,
       }),
     );
+    // One of my CPs started or ended: refresh everyone seated so the seat links update.
+    s.on('cp:update', (e: { status: string }) => e.status === 'ACCEPTED' && refreshCards(seatedRef.current));
+    s.on('cp:ended', () => refreshCards(seatedRef.current));
     s.on('user:followed', (e: FollowNote) =>
       addLocal({ type: 'FOLLOW', body: '', payload: { userId: e.user.userId, youFollowThem: e.youFollowThem }, sender: e.user }),
     );

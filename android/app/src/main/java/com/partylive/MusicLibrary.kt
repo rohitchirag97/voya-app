@@ -1,6 +1,7 @@
 package com.partylive
 
 import android.content.ContentUris
+import android.content.Context
 import android.provider.MediaStore
 import com.facebook.react.BaseReactPackage
 import com.facebook.react.bridge.Arguments
@@ -51,6 +52,19 @@ class MusicLibraryModule(private val ctx: ReactApplicationContext) : ReactContex
         promise.reject("MUSIC_SCAN_FAILED", e.message, e)
       }
     }.start()
+  }
+
+  // The room playlist, kept on the phone until the user removes songs or uninstalls (allowBackup is off).
+  private val prefs get() = ctx.getSharedPreferences("music", Context.MODE_PRIVATE)
+
+  @ReactMethod
+  fun savePlaylist(json: String) {
+    prefs.edit().putString("playlist", json).apply()
+  }
+
+  @ReactMethod
+  fun loadPlaylist(promise: Promise) {
+    promise.resolve(prefs.getString("playlist", null))
   }
 
   companion object {
