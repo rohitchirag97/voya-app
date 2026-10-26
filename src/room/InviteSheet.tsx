@@ -2,6 +2,7 @@ import { Check, Forward } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { errorText, getFriends, inviteToRoom, type UserSummary } from '../api';
+import { API_URL } from '../config';
 import { Avatar, Sheet, rs as s, toast } from '../components/ui';
 import { roomColors as colors, radius, space } from '../theme';
 
@@ -41,7 +42,8 @@ export function InviteSheet({ visible, onClose, roomId, title, inRoom }: {
     }
   }
 
-  const share = () => Share.share({ message: `Join me in "${title}" on VoyaLive! Room ID: ${roomId.slice(0, 8)}` }).catch(() => {});
+  // A tappable link: opens this room in the app, or the install page for people without it.
+  const share = () => Share.share({ message: `Join me in "${title}" on VoyaLive! ${API_URL}/r/${roomId}` }).catch(() => {});
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Invite friends">

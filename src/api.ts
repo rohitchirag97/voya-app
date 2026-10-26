@@ -246,7 +246,8 @@ export function presenceText(p: { online?: boolean; lastSeenAt?: string | null }
 export type Gift = { id: string; name: string; coinPrice: number; maxQuantity: number; svg?: string | null; animation?: string | null };
 
 export class ApiError extends Error {
-  constructor(public code: string, message: string, public status = 0) {
+  // data: extra details from the server, e.g. a ban's { until, reason }.
+  constructor(public code: string, message: string, public status = 0, public data?: Record<string, unknown>) {
     super(message);
   }
 }
@@ -298,7 +299,7 @@ async function raw(method: string, path: string, body?: unknown, headers: Record
     throw new ApiError('NETWORK', 'Cannot reach the server. Check your connection.');
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data?.error?.code ?? 'HTTP_' + res.status, data?.error?.message ?? 'Request failed', res.status);
+  if (!res.ok) throw new ApiError(data?.error?.code ?? 'HTTP_' + res.status, data?.error?.message ?? 'Request failed', res.status, data?.error?.data);
   return data;
 }
 

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
-import { errorText, roomCoverUri, type Seat } from '../api';
-import { Armchair, Forward, Lock, LockOpen, Menu, UserPlus, Users } from 'lucide-react-native';
+import { errorText, roomCoverUri, type ChatMessage, type Seat } from '../api';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { Armchair, AtSign, Copy, Forward, Lock, LockOpen, Menu, UserPlus, Users } from 'lucide-react-native';
 import { Gradient } from '../components/Gradient';
 import { Avatar, IconButton, Screen, Sheet, SheetAction, rs as s, toast } from '../components/ui';
 import { useNav } from '../nav';
@@ -43,6 +44,7 @@ export function RoomScreen() {
   const [emotesOpen, setEmotesOpen] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [msgMenu, setMsgMenu] = useState<ChatMessage | null>(null); // a tapped chat message: copy / tag
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Gift animations off: drop queued gifts instead of letting them pile up unseen.
   const giftsOff = room?.snap?.giftAnimations === false && room.gifts.length > 0;
@@ -128,6 +130,7 @@ export function RoomScreen() {
           onEmotes={() => setEmotesOpen(true)}
           onMusic={() => setMusicOpen(true)}
           onShare={() => setInviteOpen(true)}
+          onMessagePress={setMsgMenu}
           onOpenGame={nav.openGame}
           onClose={endOrLeave}
           tag={tag}
@@ -225,6 +228,7 @@ export function RoomScreen() {
             onUserPress={setCardUser}
             onOpenGame={nav.openGame}
             onEmote={() => setEmotesOpen(true)}
+            onMessagePress={setMsgMenu}
             unseenMentions={room.unseenMentions}
             onMentionsSeen={room.markMentionsSeen}
             roles={{ hostUserId: snap.hostUserId, admins: snap.admins }}
@@ -428,6 +432,30 @@ export function RoomScreen() {
             : null
         }
       />
+
+      {/* A tapped chat message: copy its text, or tag whoever sent it. */}
+      <Sheet visible={!!msgMenu} onClose={() => setMsgMenu(null)} title="Message">
+        <SheetAction
+          label="Copy text"
+          icon={<Copy size={20} color={colors.text} />}
+          onPress={() => {
+            Clipboard.setString(msgMenu?.body ?? '');
+            setMsgMenu(null);
+            toast('Copied');
+          }}
+        />
+        {msgMenu?.sender && msgMenu.sender.userId !== me.userId && msgMenu.sender.displayName ? (
+          <SheetAction
+            label={`Tag ${msgMenu.sender.displayName}`}
+            icon={<AtSign size={20} color={colors.text} />}
+            onPress={() => {
+              const { userId, displayName } = msgMenu.sender!;
+              setMsgMenu(null);
+              setTag((t) => ({ userId, handle: displayName!, n: (t?.n ?? 0) + 1 }));
+            }}
+          />
+        ) : null}
+      </Sheet>
 
       <InviteSheet
         visible={inviteOpen}

@@ -27,7 +27,7 @@ const knownNames = new Map<string, string>();
 
 type Roles = { hostUserId: string; admins: string[] };
 
-export function ChatList({ messages, participants, meId, onEndReached, onUserPress, onOpenGame, onEmote, unseenMentions, onMentionsSeen, roles }: {
+export function ChatList({ messages, participants, meId, onEndReached, onUserPress, onOpenGame, onEmote, onMessagePress, unseenMentions, onMentionsSeen, roles }: {
   messages: ChatMessage[];
   participants: Participant[];
   meId: string;
@@ -35,6 +35,7 @@ export function ChatList({ messages, participants, meId, onEndReached, onUserPre
   onUserPress: (userId: string) => void;
   onOpenGame: (g: GameKey) => void; // a game-win notice's Play button
   onEmote: () => void; // tapping an emote in chat opens the emote picker
+  onMessagePress: (m: ChatMessage) => void; // tapping a message's text: copy it or tag its sender
   unseenMentions: ChatMessage[];
   onMentionsSeen: (ids: string[]) => void;
   roles: Roles;
@@ -89,7 +90,7 @@ export function ChatList({ messages, participants, meId, onEndReached, onUserPre
         contentContainerStyle={{ paddingHorizontal: space(3), paddingVertical: space(2), gap: space(2) }}
         renderItem={({ item }) => (
           <View style={item.messageId === flash ? st.flash : undefined}>
-            <Bubble m={item} meId={meId} names={names} onUserPress={onUserPress} onOpenGame={onOpenGame} onEmote={onEmote} roles={roles} />
+            <Bubble m={item} meId={meId} names={names} onUserPress={onUserPress} onOpenGame={onOpenGame} onEmote={onEmote} onMessagePress={onMessagePress} roles={roles} />
           </View>
         )}
       />
@@ -192,13 +193,14 @@ function SystemPill({ m, onUserPress }: { m: ChatMessage; onUserPress: (userId: 
   );
 }
 
-function Bubble({ m, meId, names, onUserPress, onOpenGame, onEmote, roles }: {
+function Bubble({ m, meId, names, onUserPress, onOpenGame, onEmote, onMessagePress, roles }: {
   m: ChatMessage;
   meId: string;
   names: Map<string, string>;
   onUserPress: (userId: string) => void;
   onOpenGame: (g: GameKey) => void;
   onEmote: () => void;
+  onMessagePress: (m: ChatMessage) => void;
   roles: Roles;
 }) {
   const catalog = useCatalog();
@@ -243,9 +245,9 @@ function Bubble({ m, meId, names, onUserPress, onOpenGame, onEmote, roles }: {
       </View>
       <Text
         style={[st.msg, big && st.bigEmoji, bubble?.style && { color: bubble.style.text }]}
-        onPress={emote ? onEmote : undefined}
-        accessibilityRole={emote ? 'button' : undefined}
-        accessibilityHint={emote ? 'Opens emotes' : undefined}
+        onPress={emote ? onEmote : () => onMessagePress(m)}
+        accessibilityRole="button"
+        accessibilityHint={emote ? 'Opens emotes' : 'Copy the text or tag the sender'}
         suppressHighlighting={false}>
         {(handles.size ? m.body.split(mentionSplitter([...handles.keys()] as string[])) : [m.body]).map((part, i) =>
           handles.has(part.slice(1)) ? (

@@ -5,6 +5,7 @@ import { api, ApiError, loadSession, setSignedOutHandler, type Me } from './src/
 import { NavContext, type ActiveRoom, type Nav, type OpenGame, type Route } from './src/nav';
 import { DialogHost } from './src/components/Dialog';
 import { AppEvents } from './src/services/AppEvents';
+import { DeepLinks } from './src/services/DeepLinks';
 import { GameHost } from './src/room/GameSheet';
 import { MiniRoom, RoomHost } from './src/room/RoomSession';
 import { CoinSellersScreen } from './src/screens/CoinSellersScreen';
@@ -191,6 +192,8 @@ export default function App() {
         <DialogHost />
         {/* New-message badge and notifications, and friends' room invites, on every screen. */}
         {me ? <AppEvents /> : null}
+        {/* Shared room links open that room (after login if needed). */}
+        <DeepLinks />
       </NavContext.Provider>
     </SafeAreaProvider>
   );

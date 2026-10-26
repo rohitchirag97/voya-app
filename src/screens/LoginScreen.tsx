@@ -6,6 +6,7 @@ import { auth, errorText } from '../api';
 import { LogoMark } from '../components/Logo';
 import { Button, Screen, s, toast } from '../components/ui';
 import { useNav } from '../nav';
+import { showIfBanned } from '../components/BanNotice';
 import { colors, radius, space } from '../theme';
 
 // link: adding a phone to the signed-in account (from Settings) instead of signing in.
@@ -38,7 +39,7 @@ export function LoginScreen({ link, changeToken }: { link?: boolean; changeToken
       nav.setMe(me);
       nav.reset(me.displayName ? { name: 'home' } : { name: 'profile' });
     } catch (e) {
-      toast(errorText(e));
+      if (!showIfBanned(e)) toast(errorText(e));
     } finally {
       setGoogleBusy(false);
     }

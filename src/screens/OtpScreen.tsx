@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { auth, errorText } from '../api';
 import { Button, Screen, s, toast } from '../components/ui';
 import { useNav, type OtpPurpose } from '../nav';
+import { showIfBanned } from '../components/BanNotice';
 import { colors, radius, space } from '../theme';
 
 export function OtpScreen({ phone, devCode, purpose, changeToken }: { phone: string; devCode?: string; purpose?: OtpPurpose; changeToken?: string }) {
@@ -32,7 +33,7 @@ export function OtpScreen({ phone, devCode, purpose, changeToken }: { phone: str
       nav.setMe(me);
       nav.reset(me.displayName ? { name: 'home' } : { name: 'profile' });
     } catch (e) {
-      toast(errorText(e));
+      if (!showIfBanned(e)) toast(errorText(e));
       setCode('');
     } finally {
       setBusy(false);

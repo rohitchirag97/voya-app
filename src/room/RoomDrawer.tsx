@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, Crown, Eraser, EyeOff, Globe, ImagePlus, Lock, LogOut, ShieldCheck, UserPlus, X } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { pickCropped } from '../screens/ProfileParts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { errorText, roomCoverUri, type RoomPrivacy, type RoomSnapshot } from '../api';
 import { Gradient, ROOM_BACKGROUNDS } from '../components/Gradient';
@@ -45,12 +45,10 @@ export function RoomDrawer({ visible, onClose, room, snap, meId, onMinimize, onL
   const cover = roomCoverUri(snap.coverUrl);
   const nav = useNav();
   const bgPhoto = roomCoverUri(snap.backgroundUrl);
-  // A portrait photo for the backdrop, sized for phone screens. Choosing a preset afterwards replaces it.
+  // A portrait photo for the backdrop: move and zoom it into a phone-shaped (9:16) frame. A preset afterwards replaces it.
   async function pickBackground() {
-    const r = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, maxWidth: 1080, maxHeight: 1920, quality: 0.8 });
-    if (r.errorMessage) return toast(r.errorMessage);
-    const a = r.assets?.[0];
-    if (a?.uri) run(() => room.uploadBackground({ uri: a.uri!, type: a.type ?? 'image/jpeg', name: a.fileName ?? 'background.jpg' }), 'Background updated');
+    const file = await pickCropped(1080, 1920, 'Fit your background');
+    if (file) run(() => room.uploadBackground({ ...file, name: 'background.jpg' }), 'Background updated');
   }
   const run = (fn: () => Promise<unknown>, ok?: string) => fn().then(() => ok && toast(ok)).catch((e) => toast(errorText(e)));
 
@@ -262,11 +260,10 @@ function NameSetting({ title, onSave }: { title: string; onSave: (t: string) => 
 }
 
 function CoverSetting({ cover, onPick }: { cover: string | null; onPick: (file: { uri: string; type: string; name: string }) => void }) {
+  // Square room image: move and zoom it into the frame.
   async function pick() {
-    const r = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, maxWidth: 1024, maxHeight: 1024, quality: 0.8 });
-    if (r.errorMessage) return toast(r.errorMessage);
-    const a = r.assets?.[0];
-    if (a?.uri) onPick({ uri: a.uri, type: a.type ?? 'image/jpeg', name: a.fileName ?? 'cover.jpg' });
+    const file = await pickCropped(1024, 1024, 'Fit your room image');
+    if (file) onPick({ ...file, name: 'cover.jpg' });
   }
   return (
     <View style={st.card}>

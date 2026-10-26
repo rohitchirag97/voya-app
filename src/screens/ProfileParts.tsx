@@ -311,6 +311,28 @@ export async function pickPhoto(maxSide: number, original = false) {
   return a?.uri ? { uri: a.uri, type: a.type ?? 'image/jpeg', name: a.fileName ?? 'photo.jpg' } : null;
 }
 
+// Pick a photo, then move and zoom it into a width x height frame (native cropper). Resolves null when cancelled.
+// Used for room images (square) and room backgrounds (phone-shaped).
+export async function pickCropped(width: number, height: number, title = 'Move and scale') {
+  try {
+    const picked = await CropPicker.openPicker({ mediaType: 'photo' });
+    const c = await CropPicker.openCropper({
+      path: picked.path,
+      mediaType: 'photo',
+      width,
+      height,
+      cropperToolbarTitle: title,
+      cropperActiveWidgetColor: colors.primary,
+      compressImageQuality: 0.85,
+      forceJpg: true,
+    });
+    return { uri: c.path, type: 'image/jpeg', name: 'photo.jpg' };
+  } catch (e) {
+    if ((e as { code?: string })?.code !== 'E_PICKER_CANCELLED') toast(errorText(e));
+    return null;
+  }
+}
+
 // Pick a profile picture, then move and zoom it inside a circle (native cropper). Resolves null when cancelled.
 // `gif`: SVIP3+ may use an animated GIF, kept untouched (cropping would freeze it; the server checks the tier too).
 export async function pickAvatar(gif = false) {
